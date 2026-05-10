@@ -42,10 +42,12 @@ Get visible before building anything else. Crawler into a void = wasted output.
 - [ ] Cut empty /Modules + /Themes placeholder pages from site
 - [ ] Replace placeholder images with real photo + diagrams
 - [ ] LinkedIn: headline, about, featured post announcing the build
+- [ ] **LinkedIn developer app + request `w_member_social`** (long pole — file day 1, expect days-to-weeks for approval; manual paste in the meantime)
 - [ ] GitHub profile README + clean pinned repos
-- [ ] X/@AkBak bio + first build-in-public thread
+- [ ] X/@AkBak bio + first build-in-public thread (manual posting from here on)
 - [ ] Claim dev.to/akbak — bio, links, profile photo
-- [ ] Claim medium.com/@akbak — bio, links, profile photo
+- [ ] Claim medium.com/@akbak — bio, links, profile photo (manual posting)
+- [ ] Generate dedicated SSH key for VPS deploys: `ssh-keygen -t ed25519 -f ~/.ssh/career_os -C career-os@bak-dev.com` and `ssh-copy-id` to the Debian VPS
 - [ ] Posting cadence: LinkedIn 3×/week, X daily, dev.to weekly, Medium monthly, blog as canonical for all
 - [ ] Write first long-form post (canonical on bak-dev.com/blog, mirrored to dev.to + Medium with canonical_url)
 
@@ -86,7 +88,7 @@ See `presence/cross-posting.md` for the channel-roles + canonical-URL strategy t
 - **Backend / agents:** Python (Claude SDK), self-hosted OSS models via Ollama/vLLM where useful
 - **Web:** Next.js (already used on bak-dev.com), Postgres
 - **Scrapers:** Playwright + lightweight HTTP fetchers
-- **Deploy:** Cloudflare Pages + a small VPS for the always-on crawler
+- **Deploy:** Single Debian VPS hosts both bak-dev.com (Next.js) and the Career-OS backend / always-on crawler. SSH-key-based deploys.
 
 ---
 

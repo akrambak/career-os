@@ -8,13 +8,13 @@ they live; SEO juice flows to your domain; no duplicate-content penalty.
 
 ## Channel roles (do not blur these)
 
-| Channel              | Audience              | Content type                                    | Distribution    |
-|----------------------|-----------------------|-------------------------------------------------|-----------------|
-| **bak-dev.com/blog** | Recruiters, deep readers | Canonical home — every post lives here first  | Self-hosted     |
-| **dev.to**           | Builders, AI/dev tooling crowd | Technical writeups, code, agent walkthroughs | API (free, full) |
-| **Medium**           | Broader / business / career-pivot readers | Narrative, "lessons learned", career posts | Manual paste (or legacy token if held) |
-| **LinkedIn**         | Recruiters, professional network | Short hook adapted from blog post     | Manual paste    |
-| **X / @AkBak**       | Builder network       | Thread version of the blog post                 | Manual or paid API |
+| Channel              | Audience              | Content type                                    | Distribution (locked 2026-05-09)         |
+|----------------------|-----------------------|-------------------------------------------------|------------------------------------------|
+| **bak-dev.com/blog** | Recruiters, deep readers | Canonical home — every post lives here first  | Self-hosted on Debian VPS                |
+| **dev.to**           | Builders, AI/dev tooling crowd | Technical writeups, code, agent walkthroughs | API (free, full)                       |
+| **LinkedIn**         | Recruiters, professional network | Short hook adapted from blog post     | Official OAuth (w_member_social) — automated once approved |
+| **Medium**           | Broader / business / career-pivot readers | Narrative, "lessons learned", career posts | **Manual paste** (clipboard-formatted) |
+| **X / @AkBak**       | Builder network       | Thread version of the blog post                 | **Manual paste** (no API spend)          |
 
 ---
 
@@ -93,24 +93,26 @@ Same pattern on Medium (when token is held — see "Medium reality" below).
 
 ---
 
-## Medium reality (read this before counting on automation)
+## Channel decisions (2026-05-09)
 
-**Medium stopped issuing new integration tokens on 2026-01-01** *(verified
-2026-05-09)*. If you didn't already have one, you cannot get one anymore.
-Existing tokens still work indefinitely.
+**Medium → manual paste.** Medium stopped issuing new integration tokens on
+2026-01-01, and we've decided to skip the automation path either way.
+Career-OS pre-formats the markdown with a canonical_url note in the footer;
+you paste it into Medium and set the canonical_url manually under Story
+Settings → Advanced.
 
-Plan accordingly:
+**X → manual paste.** No API spend. Posting tier on X API v2 is $200/mo;
+not worth it at this stage. Career-OS generates thread-formatted drafts to
+clipboard / file; you paste them into x.com.
 
-- **If you have a legacy token** → fill `MEDIUM_INTEGRATION_TOKEN` in `.env`,
-  we automate posting just like dev.to.
-- **If you don't** → Medium becomes manual-paste-only. Career-OS will
-  pre-format the markdown with the canonical_url note in the footer
-  (Medium's UI lets you set canonical_url manually under Story Settings →
-  Advanced).
+**LinkedIn → official OAuth.** We pursue the formal Marketing Developer
+Platform / w_member_social path. Approval can take days-to-weeks; until it
+lands, LinkedIn posts go via the same draft-to-clipboard flow. The day
+approval is granted, we flip the switch — the drafter doesn't change.
 
-Don't over-invest in Medium either way — engagement on the platform has
-declined materially vs its 2018–2020 peak. It's a complementary surface, not
-a primary one. If it stops returning, drop it without ceremony.
+Don't over-invest in Medium — engagement on the platform has declined
+materially vs its 2018–2020 peak. It's a complementary surface, not a
+primary one. If it stops returning, drop it without ceremony.
 
 ---
 
@@ -129,5 +131,6 @@ DEVTO_API_KEY and MEDIUM_INTEGRATION_TOKEN fields and how to obtain each.
 - **Phase 1 (crawler):** publish weekly dev.to build logs **manually**.
   Get the rhythm. Capture the friction.
 - **Phase 3 (presence module):** turn the manual workflow into the
-  cross-poster service inside Career-OS — dev.to via API, Medium via API
-  if token held else clipboard-formatted, LinkedIn + X always clipboard.
+  cross-poster service inside Career-OS — dev.to via API, LinkedIn via
+  official OAuth (with clipboard fallback while approval is pending),
+  Medium and X always clipboard.
