@@ -44,7 +44,10 @@ Get visible before building anything else. Crawler into a void = wasted output.
 - [ ] LinkedIn: headline, about, featured post announcing the build
 - [ ] GitHub profile README + clean pinned repos
 - [ ] X/@AkBak bio + first build-in-public thread
-- [ ] Posting cadence: LinkedIn 3×/week, X daily, blog weekly
+- [ ] Claim dev.to/akbak — bio, links, profile photo
+- [ ] Claim medium.com/@akbak — bio, links, profile photo
+- [ ] Posting cadence: LinkedIn 3×/week, X daily, dev.to weekly, Medium monthly, blog as canonical for all
+- [ ] Write first long-form post (canonical on bak-dev.com/blog, mirrored to dev.to + Medium with canonical_url)
 
 ### Phase 1 — Opportunity crawler MVP (Weeks 2–4, ~20h)
 Highest leverage: directly serves O1, doubles as the most interesting public
@@ -64,9 +67,12 @@ agent demo for O2/O3.
 ### Phase 3 — Presence module (Weeks 8–10, ~25h)
 The SaaS-shaped piece — by now there is audience and product to point at.
 
-- [ ] Multi-platform post drafter (LinkedIn, X, dev.to, HN)
+- [ ] Cross-poster: bak-dev.com/blog → dev.to (API) and Medium (API if legacy token, else clipboard-formatted) with canonical_url back to the blog
+- [ ] Multi-platform post drafter (LinkedIn, X, dev.to, Medium, HN)
 - [ ] Schedule + queue + manual approval gate
-- [ ] Engagement tracking + post-performance analytics
+- [ ] Engagement tracking + post-performance analytics across all surfaces
+
+See `presence/cross-posting.md` for the channel-roles + canonical-URL strategy this module operationalizes.
 
 ### Phase 4 — GitHub optimizer + public launch (Weeks 11–12, ~15h)
 - [ ] Profile analyzer + repo recommendations vs target roles
@@ -90,7 +96,8 @@ The SaaS-shaped piece — by now there is audience and product to point at.
 .
 ├── README.md                # this file — the playbook
 ├── presence/                # copy + assets for site, LinkedIn, X, GitHub profile
-│   ├── positioning.md       # headline, taglines, bio variants
-│   └── linkedin.md          # LinkedIn rewrite (headline, about, featured post)
+│   ├── positioning.md       # headline, taglines, bio variants, public handles
+│   ├── linkedin.md          # LinkedIn rewrite (headline, about, featured post)
+│   └── cross-posting.md     # bak-dev.com → dev.to / Medium / LinkedIn / X strategy
 └── (phase 1+ code lands here as it ships)
 ```

@@ -22,6 +22,12 @@ the message is consistent. If you change one, change them all.
 **GitHub profile bio (160 char):**
 > Senior fullstack engineer (8y) → AI agents for e-commerce/SMBs · Claude SDK + OSS LLMs · Building Career-OS in public
 
+**dev.to bio (200 char):**
+> Senior fullstack engineer (8y, PHP/Laravel/Flutter) layering AI agents on top. Building Career-OS in public — Claude SDK + OSS LLMs. Posts: build logs, agent patterns, e-commerce × AI.
+
+**Medium bio (160 char):**
+> Senior fullstack (8y in production) writing about the pivot to AI engineering. Building Career-OS in public. Posts mirror bak-dev.com.
+
 **Site H1 (bak-dev.com home):**
 > Hi, I'm Akram — I build AI-powered tools on top of 8 years of production fullstack work.
 
@@ -56,3 +62,19 @@ the message is consistent. If you change one, change them all.
 - Languages: French + English (bilingual)
 - Based: [fill in city/country before publishing]
 - Location preference: fully remote, anywhere
+
+---
+
+## Public handles
+
+| Surface       | Handle / URL                              | Status   |
+|---------------|-------------------------------------------|----------|
+| Personal site | https://bak-dev.com                       | live     |
+| LinkedIn      | linkedin.com/in/[fill in]                 | rewrite pending |
+| X / Twitter   | https://x.com/AkBak                       | claim    |
+| GitHub        | https://github.com/AkBak                  | claim/audit |
+| dev.to        | https://dev.to/akbak                      | claim    |
+| Medium        | https://medium.com/@akbak (or @bakhouche-akram) | claim |
+| Email         | me@bak-dev.com                            | live     |
+
+When claiming dev.to and Medium: set the bio above, link to bak-dev.com and GitHub, upload the same profile photo as LinkedIn for visual consistency.
