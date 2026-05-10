@@ -12,7 +12,7 @@ they live; SEO juice flows to your domain; no duplicate-content penalty.
 |----------------------|-----------------------|-------------------------------------------------|------------------------------------------|
 | **bak-dev.com/blog** | Recruiters, deep readers | Canonical home — every post lives here first  | Self-hosted on Debian VPS                |
 | **dev.to**           | Builders, AI/dev tooling crowd | Technical writeups, code, agent walkthroughs | API (free, full)                       |
-| **LinkedIn**         | Recruiters, professional network | Short hook adapted from blog post     | Official OAuth (w_member_social) — automated once approved |
+| **LinkedIn**         | Recruiters, professional network | Short hook adapted from blog post     | Cookie-based (`linkedin-api`, li_at) — runs from local IP, ToS grey |
 | **Medium**           | Broader / business / career-pivot readers | Narrative, "lessons learned", career posts | **Manual paste** (clipboard-formatted) |
 | **X / @AkBak**       | Builder network       | Thread version of the blog post                 | **Manual paste** (no API spend)          |
 
@@ -105,10 +105,20 @@ Settings → Advanced.
 not worth it at this stage. Career-OS generates thread-formatted drafts to
 clipboard / file; you paste them into x.com.
 
-**LinkedIn → official OAuth.** We pursue the formal Marketing Developer
-Platform / w_member_social path. Approval can take days-to-weeks; until it
-lands, LinkedIn posts go via the same draft-to-clipboard flow. The day
-approval is granted, we flip the switch — the drafter doesn't change.
+**LinkedIn → cookie-based via `linkedin-api` (Voyager).** Against ToS but
+quiet enough at our cadence (≤3 posts/week with timing jitter) to be a
+reasonable risk. Required mitigations baked into the adapter:
+- Adapter runs from your residential IP (your machine), not from the
+  Debian VPS. Same IP/ASN as the cookie's origin login = lower flag risk.
+- Human-like timing jitter (no posts on the exact same minute each week).
+- Cap: ≤3 posts/week, ≤1/day.
+- Hard fallback to clipboard mode the moment any auth call returns
+  401/CHALLENGE; emails you to refresh the cookie.
+
+If at any point LinkedIn flags or restricts the account, we drop straight
+to manual mode and don't try to evade. The blog stays canonical, dev.to
+keeps publishing, and LinkedIn becomes a manual-paste channel like X. The
+cross-poster's adapter shape makes that flip a one-line config change.
 
 Don't over-invest in Medium — engagement on the platform has declined
 materially vs its 2018–2020 peak. It's a complementary surface, not a
@@ -131,6 +141,6 @@ DEVTO_API_KEY and MEDIUM_INTEGRATION_TOKEN fields and how to obtain each.
 - **Phase 1 (crawler):** publish weekly dev.to build logs **manually**.
   Get the rhythm. Capture the friction.
 - **Phase 3 (presence module):** turn the manual workflow into the
-  cross-poster service inside Career-OS — dev.to via API, LinkedIn via
-  official OAuth (with clipboard fallback while approval is pending),
-  Medium and X always clipboard.
+  cross-poster service inside Career-OS — dev.to via API (runs on VPS),
+  LinkedIn via cookie (runs locally on home IP, with clipboard fallback
+  on any auth failure), Medium and X always clipboard.

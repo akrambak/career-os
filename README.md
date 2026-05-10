@@ -42,7 +42,7 @@ Get visible before building anything else. Crawler into a void = wasted output.
 - [ ] Cut empty /Modules + /Themes placeholder pages from site
 - [ ] Replace placeholder images with real photo + diagrams
 - [ ] LinkedIn: headline, about, featured post announcing the build
-- [ ] **LinkedIn developer app + request `w_member_social`** (long pole — file day 1, expect days-to-weeks for approval; manual paste in the meantime)
+- [ ] Extract LinkedIn session cookies (li_at, JSESSIONID, bcookie) from a clean logged-in browser session — populate `.env`
 - [ ] GitHub profile README + clean pinned repos
 - [ ] X/@AkBak bio + first build-in-public thread (manual posting from here on)
 - [ ] Claim dev.to/akbak — bio, links, profile photo
@@ -88,7 +88,7 @@ See `presence/cross-posting.md` for the channel-roles + canonical-URL strategy t
 - **Backend / agents:** Python (Claude SDK), self-hosted OSS models via Ollama/vLLM where useful
 - **Web:** Next.js (already used on bak-dev.com), Postgres
 - **Scrapers:** Playwright + lightweight HTTP fetchers
-- **Deploy:** Single Debian VPS hosts both bak-dev.com (Next.js) and the Career-OS backend / always-on crawler. SSH-key-based deploys.
+- **Deploy:** Single Debian VPS hosts bak-dev.com (Next.js), the always-on crawler, and the Career-OS dashboard backend. SSH-key-based deploys. **Exception:** the LinkedIn cookie-based poster runs locally on the user's machine (residential IP, same ASN as the cookie's origin login) to minimize flag risk; talks to the rest of Career-OS via API.
 
 ---
 
