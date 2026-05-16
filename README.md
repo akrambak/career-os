@@ -133,6 +133,7 @@ career-os advance <job-key> --to interview    # move along pipeline stages
 career-os status                              # pipeline funnel + recent activity
 career-os eval --dry-run                      # scorer calibration regression check
 career-os dashboard                           # Streamlit dashboard (pip install -e ".[dashboard]")
+career-os dashboard --address 127.0.0.1       # local-only bind (default is 0.0.0.0 for WSL access)
 ```
 
 The default SQLite DB lives at `data/career_os.db` (gitignored).

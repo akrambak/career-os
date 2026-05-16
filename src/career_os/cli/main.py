@@ -379,10 +379,13 @@ def _stub_score_fn():
 
 @cli.command()
 @click.option("--port", default=8501, type=int)
+@click.option(
+    "--address", default="0.0.0.0",
+    help="Bind address. Default 0.0.0.0 (reachable from WSL host); use 127.0.0.1 for local-only.",
+)
 @click.option("--no-open", is_flag=True, help="Do not auto-open a browser tab.")
-def dashboard(port: int, no_open: bool) -> None:
+def dashboard(port: int, address: str, no_open: bool) -> None:
     """Launch the Streamlit dashboard. Install with: pip install -e \".[dashboard]\""""
-    import os
     import subprocess
     from pathlib import Path
     try:
@@ -394,14 +397,20 @@ def dashboard(port: int, no_open: bool) -> None:
         )
         sys.exit(1)
     app_path = Path(__file__).resolve().parent.parent / "dashboard" / "app.py"
+    # Use the current interpreter to invoke streamlit. Calling bare `streamlit`
+    # only works if .venv/bin is on PATH (i.e. the venv is activated). Running
+    # via `python -m streamlit` always finds the right binary regardless of
+    # whether the user activated the venv.
     cmd = [
-        "streamlit", "run", str(app_path),
+        sys.executable, "-m", "streamlit", "run", str(app_path),
         "--server.port", str(port),
+        "--server.address", address,
         "--server.headless", "true" if no_open else "false",
         "--browser.gatherUsageStats", "false",
     ]
-    console.print(f"[green]Launching dashboard on http://localhost:{port}[/green]")
-    subprocess.run(cmd, env={**os.environ, "PYTHONPATH": str(Path.cwd() / "src")}, check=False)
+    display_host = "localhost" if address in ("0.0.0.0", "127.0.0.1") else address
+    console.print(f"[green]Launching dashboard on http://{display_host}:{port}[/green]")
+    subprocess.run(cmd, check=False)
 
 
 @cli.command()
