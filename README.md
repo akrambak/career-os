@@ -79,8 +79,10 @@ agent demo for O2/O3.
 
 ### Phase 2 — Application agent + tracker (Weeks 5–7, ~25h)
 - [x] Outreach drafter — scored job → tailored cover-letter / freelance pitch (`career-os draft`)
-- [ ] Application pipeline tracker (stages, dates, follow-up nudges)
-- [ ] Email-send integration (transactional SMTP)
+- [x] Application pipeline tracker (`career-os apply | advance | status`)
+- [x] Email-send integration (Resend / Postmark / Gmail adapters)
+- [x] Scorer eval harness — fixtures + calibration check
+- [ ] Follow-up nudges on stale applications
 - [ ] First web UI (Next.js, kept minimal)
 
 ### Phase 3 — Presence module (Weeks 8–10, ~25h)
@@ -122,8 +124,13 @@ career-os score --limit 50                    # score unscored jobs with Claude
 career-os score --limit 50 --dry-run          # offline keyword stub (no API key)
 career-os top --min-fit 70                    # CLI table of top matches
 career-os digest --out today.md --min-fit 65  # markdown digest to file
+career-os digest --send --min-fit 65          # email the digest via SMTP_PROVIDER
 career-os draft --top 5 --min-fit 70          # generate outreach for top matches
 career-os draft <job-key> --dry-run           # offline template, no API key
+career-os apply <job-key>                     # add to pipeline tracker (drafted)
+career-os advance <job-key> --to interview    # move along pipeline stages
+career-os status                              # pipeline funnel + recent activity
+career-os eval --dry-run                      # scorer calibration regression check
 ```
 
 The default SQLite DB lives at `data/career_os.db` (gitignored).
@@ -141,11 +148,16 @@ Postgres swap-in is planned for Phase 2.
 │   ├── scrapers/            # one file per source — drop-in extensible
 │   │   ├── remoteok.py      #   live (JSON API)
 │   │   ├── weworkremotely.py#   live (RSS, 2 categories)
-│   │   └── hn_freelancer.py #   live (HN monthly "Seeking freelancer?" Algolia,
-│   │                        #   with stack / budget / location / contact extraction)
+│   │   ├── remotive.py      #   live (Remotive JSON API)
+│   │   ├── hn_freelancer.py #   live (HN monthly "Seeking freelancer?" Algolia,
+│   │   │                    #   with stack / budget / location / contact extraction)
+│   │   └── hn_whoishiring.py#   live (HN monthly "Who is hiring?" — high volume)
 │   ├── scorer/claude_scorer.py  # Claude SDK fit-scorer, prompt-cached system block
 │   ├── drafter/outreach.py  # Claude SDK outreach generator (FT cover / freelance pitch)
 │   ├── digest/render.py     # markdown digest renderer (for email + CLI)
+│   ├── digest/email.py      # Resend / Postmark / Gmail SMTP adapters
+│   ├── tracker/pipeline.py  # application stages: drafted → sent → ... → won/rejected
+│   ├── eval/scorer_eval.py  # regression-guard for scorer calibration
 │   ├── db/store.py          # SQLite store with Postgres-shaped schema
 │   ├── models.py            # Pydantic models: JobPost, Score, Profile, Channel
 │   └── profile.py           # the user's profile fed to the scorer

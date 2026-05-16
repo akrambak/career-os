@@ -16,6 +16,16 @@ from ..models import Score
 from ..profile import DEFAULT_PROFILE
 from ..scorer import ClaudeScorer, score_pending
 from ..scrapers import REGISTRY
+from ..tracker import (
+    STAGES,
+    StageTransitionError,
+    funnel_counts,
+    record_application,
+)
+from ..tracker import (
+    advance as tracker_advance,
+)
+from ..tracker.pipeline import list_applications
 
 console = Console()
 
@@ -135,8 +145,15 @@ def top(limit: int, min_fit: int, channel: str) -> None:
 @click.option("--limit", default=5, type=int)
 @click.option("--min-fit", default=60, type=int)
 @click.option("--out", "output_path", type=click.Path(), default=None)
-def digest(limit: int, min_fit: int, output_path: str | None) -> None:
-    """Render today's top-N digest as Markdown."""
+@click.option(
+    "--send", is_flag=True,
+    help="Send via SMTP_PROVIDER (requires SMTP_API_KEY in .env).",
+)
+def digest(limit: int, min_fit: int, output_path: str | None, send: bool) -> None:
+    """Render today's top-N digest as Markdown. Optionally email it."""
+    from datetime import date
+
+    from ..digest import DigestEmailer
     settings = Settings.load()
     store = Store(settings.database_url)
     rows = store.top_scored(limit=limit, min_fit=min_fit)
@@ -145,8 +162,27 @@ def digest(limit: int, min_fit: int, output_path: str | None) -> None:
         with open(output_path, "w") as f:
             f.write(md)
         console.print(f"Wrote {output_path}")
-    else:
+    elif not send:
         console.print(md)
+    if send:
+        if not settings.smtp_provider or not settings.smtp_api_key:
+            console.print(
+                "[red]SMTP_PROVIDER and SMTP_API_KEY required in .env to --send[/red]"
+            )
+            sys.exit(1)
+        emailer = DigestEmailer(
+            provider=settings.smtp_provider, api_key=settings.smtp_api_key,
+            sender=settings.smtp_from, recipient=settings.smtp_to,
+        )
+        result = emailer.send(
+            subject=f"Top {len(rows)} matches — {date.today().isoformat()}",
+            markdown_body=md,
+        )
+        if result.ok:
+            console.print(f"[green]sent via {result.provider}[/green] · {result.detail}")
+        else:
+            console.print(f"[red]send failed via {result.provider}[/red] · {result.detail}")
+            sys.exit(2)
 
 
 @cli.command()
@@ -210,6 +246,135 @@ def draft(job_key: str | None, top_n: int | None, min_fit: int, dry_run: bool, s
             console.rule(f"[bold]{job.title}[/bold] · fit {score.fit} · {job.key}")
             console.print(body)
             console.print()
+
+
+@cli.command()
+@click.argument("job_key")
+@click.option(
+    "--stage", type=click.Choice(list(STAGES)), default="drafted",
+    help="Initial stage. Default: drafted.",
+)
+@click.option("--notes", default=None)
+def apply(job_key: str, stage: str, notes: str | None) -> None:
+    """Record an application for a job — adds it to the pipeline tracker."""
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    try:
+        app = record_application(store, job_key, stage=stage, notes=notes)
+    except StageTransitionError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+    console.print(f"[green]ok[/green] · {app.job_key} → {app.stage}")
+
+
+@cli.command()
+@click.argument("job_key")
+@click.option(
+    "--to", "to_stage", type=click.Choice(list(STAGES)), default=None,
+    help="Target stage. Default: next stage in the pipeline.",
+)
+@click.option("--notes", default=None)
+def advance(job_key: str, to_stage: str | None, notes: str | None) -> None:
+    """Move an application forward to the next stage (or a specific one)."""
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    try:
+        app = tracker_advance(store, job_key, to=to_stage, notes=notes)
+    except StageTransitionError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+    console.print(f"[green]ok[/green] · {app.job_key} → {app.stage}")
+
+
+@cli.command()
+@click.option(
+    "--stage", type=click.Choice(list(STAGES)), default=None,
+    help="Only show applications in this stage.",
+)
+def status(stage: str | None) -> None:
+    """Show the application pipeline: funnel counts + recent activity."""
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    counts = funnel_counts(store)
+
+    funnel = Table(title="Pipeline funnel", show_lines=False)
+    funnel.add_column("stage")
+    funnel.add_column("count", justify="right")
+    total = sum(counts.values())
+    for s in STAGES:
+        funnel.add_row(s, str(counts[s]))
+    funnel.add_section()
+    funnel.add_row("TOTAL", str(total))
+    console.print(funnel)
+
+    rows = list_applications(store, stage=stage)
+    if not rows:
+        return
+    listing = Table(title=f"Applications{f' · {stage}' if stage else ''}", show_lines=False)
+    listing.add_column("stage")
+    listing.add_column("title")
+    listing.add_column("key")
+    listing.add_column("updated")
+    for app, title in rows[:20]:
+        listing.add_row(app.stage, title[:48], app.job_key, app.updated_at.date().isoformat())
+    console.print(listing)
+
+
+@cli.command()
+@click.option("--dry-run", is_flag=True, help="Use the keyword stub instead of Claude.")
+def eval(dry_run: bool) -> None:
+    """Run scorer fixtures and check the score distribution stays calibrated."""
+    from ..eval import evaluate_fixtures, evaluate_fixtures_with, summarize
+    settings = Settings.load()
+    if dry_run:
+        rows = evaluate_fixtures_with(_stub_score_fn(), DEFAULT_PROFILE)
+    else:
+        if not settings.anthropic_api_key:
+            console.print("[red]ANTHROPIC_API_KEY not set (or use --dry-run)[/red]")
+            sys.exit(1)
+        rows = evaluate_fixtures(ClaudeScorer(settings.anthropic_api_key), DEFAULT_PROFILE)
+
+    table = Table(title="Scorer eval", show_lines=False)
+    table.add_column("fixture")
+    table.add_column("expected", justify="right")
+    table.add_column("actual", justify="right")
+    table.add_column("ok")
+    table.add_column("reasoning")
+    for r in rows:
+        ok = "[green]✓[/green]" if r.in_range else f"[red]× ({r.deviation})[/red]"
+        table.add_row(
+            r.fixture_id, f"{r.expected_min}-{r.expected_max}", str(r.actual),
+            ok, r.reasoning[:60],
+        )
+    console.print(table)
+    s = summarize(rows)
+    console.print(
+        f"\n[bold]{s['in_range']}/{s['n']} in range ({s['in_range_pct']}%)[/bold] · "
+        f"mean {s['mean_fit']} · median {s['median_fit']} · "
+        f"70+: {s['distribution_70_plus']} · 30-55: {s['distribution_30_to_55']}"
+    )
+
+
+def _stub_score_fn():
+    """Deterministic profile-aware stub mirroring _score_dry_run."""
+    profile_terms = {
+        t.lower() for stack in (DEFAULT_PROFILE.proven_stack, DEFAULT_PROFILE.new_stack)
+        for term in stack for t in term.replace("/", " ").split()
+        if len(t) > 2
+    }
+
+    def score_fn(job, profile):
+        text = f"{job.title} {' '.join(job.tags)} {job.description[:1500]}".lower()
+        hits = sum(1 for term in profile_terms if term in text)
+        fit = min(95, 25 + hits * 5)
+        return Score(
+            job_key=job.key, fit=fit,
+            reasoning=f"[stub] {hits} term matches.",
+            pros=[t for t in profile_terms if t in text][:3],
+            cons=[],
+            suggested_angle=None,
+        )
+    return score_fn
 
 
 @cli.command()
