@@ -1,19 +1,24 @@
-"""Streamlit dashboard. Launch with: `career-os dashboard`."""
+"""Streamlit dashboard. Launch with: `career-os dashboard`.
+
+Imports are absolute (`career_os.*`) so this file works whether it's loaded
+as a module (Python imports) or executed directly by streamlit run (which
+doesn't establish a package context for relative imports).
+"""
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 import streamlit as st
 
-from ..config import Settings
-from ..db import Store
-from .queries import (
+from career_os.config import Settings
+from career_os.dashboard.queries import (
     drafts_ready,
     funnel,
     source_health,
     top_matches,
     totals,
 )
+from career_os.db import Store
 
 st.set_page_config(
     page_title="Career-OS",
@@ -22,8 +27,12 @@ st.set_page_config(
 )
 
 
-@st.cache_resource
 def _store() -> Store:
+    # Intentionally NOT @st.cache_resource — that caches the Store across the
+    # entire process lifetime, which breaks test isolation and ignores changes
+    # to DATABASE_URL between runs. SQLite Store construction is a single file
+    # stat + schema check, so calling it per query is cheap. The actual cost
+    # savings come from @st.cache_data on the query functions below.
     return Store(Settings.load().database_url)
 
 
