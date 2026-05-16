@@ -14,10 +14,10 @@ the message is consistent. If you change one, change them all.
 ## Headline variants by surface
 
 **LinkedIn headline (220 char max):**
-> Senior Fullstack Engineer (8y) building AI agents for e-commerce & SMBs · Claude SDK + OSS LLMs · PHP/Laravel/Flutter · Shipping Career-OS in public · Open to FT remote
+> Senior Fullstack Engineer (8y) building AI agents for e-commerce & SMBs · Claude SDK + OSS LLMs · PHP/Laravel/Flutter · Shipping Career-OS in public · FT remote or freelance
 
 **X / Twitter bio (160 char):**
-> Senior fullstack (8y) layering AI on top · Claude SDK + OSS LLMs · PHP·Laravel·Flutter · Building @CareerOS in public · FT remote
+> Senior fullstack (8y) layering AI on top · Claude SDK + OSS LLMs · PHP·Laravel·Flutter · Building Career-OS in public · FT remote or freelance — DMs open
 
 **GitHub profile bio (160 char):**
 > Senior fullstack engineer (8y) → AI agents for e-commerce/SMBs · Claude SDK + OSS LLMs · Building Career-OS in public
@@ -44,13 +44,12 @@ the message is consistent. If you change one, change them all.
 
 ---
 
-## What I'm open to (for inbound recruiters)
+## What I'm open to (for inbound recruiters and clients)
 
-- Full-time, fully remote
-- Senior fullstack roles where AI/LLM work is part of the brief, OR
-- AI-engineering / agent-systems roles that value strong shipping background
+- **Full-time, fully remote** — senior fullstack roles where AI/LLM work is part of the brief, OR AI-engineering / agent-systems roles that value a strong shipping background
+- **Freelance / contract** — scoped engagements where someone needs production-grade AI features bolted onto an existing Laravel / PrestaShop / Vue / Flutter stack, or a Claude-SDK agent built and shipped to real users. Minimum engagement: 2 weeks. Preference for retainer or fixed-scope over hourly.
 - Companies serving e-commerce, SMB tooling, or developer tooling are an especially good fit
-- Not pursuing freelance/contract work right now
+- Both channels accept the same intake: email me@bak-dev.com or DM on LinkedIn / X
 
 ---
 
@@ -72,7 +71,7 @@ the message is consistent. If you change one, change them all.
 | Personal site | https://bak-dev.com                       | live     |
 | LinkedIn      | linkedin.com/in/[fill in]                 | rewrite pending |
 | X / Twitter   | https://x.com/AkBak                       | claim    |
-| GitHub        | https://github.com/AkBak                  | claim/audit |
+| GitHub        | https://github.com/akrambak                  | claim/audit |
 | dev.to        | https://dev.to/akbak                      | claim    |
 | Medium        | https://medium.com/@akbak (or @bakhouche-akram) | claim |
 | Email         | me@bak-dev.com                            | live     |

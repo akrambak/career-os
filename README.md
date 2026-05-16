@@ -1,11 +1,23 @@
 # Career OS — Bakhouche Akram (AkBak)
 
+[![CI](https://github.com/akrambak/career-os/actions/workflows/ci.yml/badge.svg)](https://github.com/akrambak/career-os/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](pyproject.toml)
+
 Senior fullstack engineer (8y production) layering AI agents on top of an
 e-commerce/SMB foundation. This repo is both the playbook and the product:
-the system that runs my job search, presence, and GitHub also doubles as the
-flagship portfolio piece and seed SaaS.
+the system that runs my job search (FT remote + freelance), presence, and
+GitHub also doubles as the flagship portfolio piece and seed SaaS.
 
 Build in public. Real name. One project, three outcomes.
+
+```
+fetch  →  store  →  score  →  draft  →  digest
+```
+
+Crawls remote-job and HN-freelance sources, scores each posting against a
+profile with Claude, drafts ready-to-send outreach, and emits a Markdown
+digest of the top matches.
 
 ---
 
@@ -13,11 +25,12 @@ Build in public. Real name. One project, three outcomes.
 
 | #  | Objective                                  | Success metric                                                                       |
 |----|--------------------------------------------|--------------------------------------------------------------------------------------|
-| O1 | Land FT remote AI/fullstack offer          | ≥3 final-stage interviews in pipeline; ≥10 qualified applications/week sustained     |
+| O1 | Land work — FT remote OR freelance retainer | ≥3 qualified leads/wk (FT final-stage OR freelance scope call); ≥10 applications/wk |
 | O2 | Establish builder-voice presence           | 1,000 combined LinkedIn + X followers; 1 build-in-public post/day; 4 long-form posts |
 | O3 | Ship Career-OS v1 public alpha             | Open-source repo + live demo; 50 GitHub stars; landing page with waitlist            |
 
 Priority if reality pushes back: protect O1 first, O3 second, O2 absorbs slack.
+Within O1, accept whichever channel converts first — freelance retainer or FT offer. Treat them as substitutes, not a hierarchy.
 
 ---
 
@@ -55,15 +68,19 @@ Get visible before building anything else. Crawler into a void = wasted output.
 Highest leverage: directly serves O1, doubles as the most interesting public
 agent demo for O2/O3.
 
-- [ ] Scrapers: RemoteOK, Wellfound, We Work Remotely, HN Who's Hiring, AI boards
-- [ ] Postgres schema (jobs, scores, applications, posts)
-- [ ] Claude scorer: each job vs profile → 0–100 fit + reasoning
+- [x] Scrapers: RemoteOK, We Work Remotely, HN "Seeking freelancer?"
+- [ ] Add scrapers: Wellfound, HN Who's Hiring, EU freelance boards
+- [x] Schema (jobs, scores, applications) — SQLite for dev, Postgres-shaped
+- [ ] Postgres swap-in (driver behind same `Store` interface)
+- [x] Claude scorer: each job vs profile → 0–100 fit + reasoning
+- [x] CLI digest (`career-os top` / `career-os digest`)
 - [ ] Daily digest email (top 5)
-- [ ] Open-source from commit 1; tweet each milestone
+- [ ] Open-source: push to github.com/akrambak/career-os, tweet each milestone
 
 ### Phase 2 — Application agent + tracker (Weeks 5–7, ~25h)
-- [ ] Tailored CV / cover-letter generator from job posting + profile
+- [x] Outreach drafter — scored job → tailored cover-letter / freelance pitch (`career-os draft`)
 - [ ] Application pipeline tracker (stages, dates, follow-up nudges)
+- [ ] Email-send integration (transactional SMTP)
 - [ ] First web UI (Next.js, kept minimal)
 
 ### Phase 3 — Presence module (Weeks 8–10, ~25h)
@@ -92,14 +109,52 @@ See `presence/cross-posting.md` for the channel-roles + canonical-URL strategy t
 
 ---
 
+## Quick start
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env                          # fill ANTHROPIC_API_KEY at minimum
+
+career-os sources                             # list registered scrapers
+career-os fetch                               # crawl all sources → SQLite
+career-os score --limit 50                    # score unscored jobs with Claude
+career-os score --limit 50 --dry-run          # offline keyword stub (no API key)
+career-os top --min-fit 70                    # CLI table of top matches
+career-os digest --out today.md --min-fit 65  # markdown digest to file
+career-os draft --top 5 --min-fit 70          # generate outreach for top matches
+career-os draft <job-key> --dry-run           # offline template, no API key
+```
+
+The default SQLite DB lives at `data/career_os.db` (gitignored).
+Postgres swap-in is planned for Phase 2.
+
 ## Repo layout
 
 ```
 .
 ├── README.md                # this file — the playbook
-├── presence/                # copy + assets for site, LinkedIn, X, GitHub profile
-│   ├── positioning.md       # headline, taglines, bio variants, public handles
-│   ├── linkedin.md          # LinkedIn rewrite (headline, about, featured post)
-│   └── cross-posting.md     # bak-dev.com → dev.to / Medium / LinkedIn / X strategy
-└── (phase 1+ code lands here as it ships)
+├── pyproject.toml           # package config; installs the `career-os` CLI
+├── src/career_os/
+│   ├── cli/main.py          # `career-os` CLI: fetch | score | top | digest | sources
+│   ├── crawler/run.py       # orchestrates scrapers concurrently
+│   ├── scrapers/            # one file per source — drop-in extensible
+│   │   ├── remoteok.py      #   live (JSON API)
+│   │   ├── weworkremotely.py#   live (RSS, 2 categories)
+│   │   └── hn_freelancer.py #   live (HN monthly "Seeking freelancer?" Algolia,
+│   │                        #   with stack / budget / location / contact extraction)
+│   ├── scorer/claude_scorer.py  # Claude SDK fit-scorer, prompt-cached system block
+│   ├── drafter/outreach.py  # Claude SDK outreach generator (FT cover / freelance pitch)
+│   ├── digest/render.py     # markdown digest renderer (for email + CLI)
+│   ├── db/store.py          # SQLite store with Postgres-shaped schema
+│   ├── models.py            # Pydantic models: JobPost, Score, Profile, Channel
+│   └── profile.py           # the user's profile fed to the scorer
+├── tests/                   # pytest suite
+├── scripts/smoke.py         # import-time smoke test
+└── presence/                # copy + strategy for site, LinkedIn, X, GitHub profile
+    ├── positioning.md       # headline, taglines, bio variants, public handles
+    ├── linkedin.md          # LinkedIn rewrite (headline, about, featured post)
+    ├── cross-posting.md     # bak-dev.com → dev.to / Medium / LinkedIn / X strategy
+    ├── github-profile.md    # akrambak/akrambak README + repo bootstrap checklist
+    └── hire-me-page.md      # spec for bak-dev.com/hire-me freelance intake page
 ```

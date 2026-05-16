@@ -8,13 +8,13 @@ narrative clear, current build visible, no fluff.
 
 ## 1. Headline (220 char limit — current uses ~190)
 
-> Senior Fullstack Engineer (8y) building AI agents for e-commerce & SMBs · Claude SDK + OSS LLMs · PHP/Laravel/Flutter · Shipping Career-OS in public · Open to FT remote
+> Senior Fullstack Engineer (8y) building AI agents for e-commerce & SMBs · Claude SDK + OSS LLMs · PHP/Laravel/Flutter · Shipping Career-OS in public · FT remote or freelance
 
 **Variants — pick by gut:**
 
-- A: "Senior Fullstack Engineer (8y) → AI agents for e-commerce/SMBs · Claude SDK + Ollama · Building Career-OS in public · Open to FT remote"
-- B: "Senior Fullstack Engineer · 8y in production (Laravel·Flutter) · Now layering AI agents on top · Claude SDK + OSS LLMs · Building in public"
-- C: "I bring 8 years of production fullstack to AI engineering · Laravel·Flutter·Claude SDK · Building Career-OS in public · Open to FT remote"
+- A: "Senior Fullstack Engineer (8y) → AI agents for e-commerce/SMBs · Claude SDK + Ollama · Building Career-OS in public · FT remote or freelance"
+- B: "Senior Fullstack Engineer · 8y in production (Laravel·Flutter) · Now layering AI agents on top · Claude SDK + OSS LLMs · Building in public · Open to work"
+- C: "I bring 8 years of production fullstack to AI engineering · Laravel·Flutter·Claude SDK · Building Career-OS in public · FT remote or freelance"
 
 Recommendation: **A** — most concrete, leads with seniority, ends with the ask.
 
@@ -54,15 +54,15 @@ The new layer:
 • Building reliable, evaluatable agent systems — not demos
 
 I'm open to:
-• Senior fullstack roles where AI is in the brief
-• AI / agent-systems roles that value strong shipping background
-• Fully remote, full-time
+• Full-time, fully remote — senior fullstack roles where AI is in the brief,
+  or AI / agent-systems roles that value strong shipping background
+• Freelance / contract — scoped engagements adding production-grade AI to
+  existing Laravel / PrestaShop / Vue / Flutter stacks, or building Claude-SDK
+  agents shipped to real users. 2-week minimum, retainer or fixed-scope.
 • Especially good fit: e-commerce, SMB tooling, dev tooling
 
-Not currently pursuing freelance or contract work.
-
 Follow along with the build — or message me directly:
-• GitHub: github.com/AkBak
+• GitHub: github.com/akrambak
 • Site: bak-dev.com
 • Email: me@bak-dev.com
 ```
@@ -95,11 +95,11 @@ It's open source from commit 1. It's the system that's also producing
 the content you're reading right now. By end of summer it ships as a
 public alpha + SaaS landing.
 
-Follow along here, on github.com/AkBak, or at bak-dev.com.
+Follow along here, on github.com/akrambak, or at bak-dev.com.
 
 I'm open to FT remote senior fullstack roles where AI is in the
-brief — or AI/agent roles that value a real shipping background.
-DMs open.
+brief — or freelance engagements bolting production-grade AI onto
+existing Laravel / PrestaShop / Flutter stacks. DMs open.
 
 #BuildInPublic #AIEngineering #FullStack #Claude #LLM
 ```
@@ -124,7 +124,7 @@ Avoid: "Was responsible for...", "Worked with...". These are filler.
 ## 5. Featured links to attach
 
 - bak-dev.com (after Phase 0 site rewrite)
-- github.com/AkBak/career-os (Phase 1, once first commit is public)
+- github.com/akrambak/career-os (Phase 1, once first commit is public)
 - One demo video / GIF of the crawler (Phase 1 milestone)
 
 ---
