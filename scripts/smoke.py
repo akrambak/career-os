@@ -30,6 +30,7 @@ MODULES = [
     "career_os.scrapers.remotive",
     "career_os.scrapers.hn_freelancer",
     "career_os.scrapers.hn_whoishiring",
+    "career_os.dashboard.queries",
     "career_os.cli.main",
 ]
 

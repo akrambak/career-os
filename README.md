@@ -82,8 +82,9 @@ agent demo for O2/O3.
 - [x] Application pipeline tracker (`career-os apply | advance | status`)
 - [x] Email-send integration (Resend / Postmark / Gmail adapters)
 - [x] Scorer eval harness — fixtures + calibration check
+- [x] Streamlit dashboard (`career-os dashboard`) — funnel, top matches, drafts, source health
 - [ ] Follow-up nudges on stale applications
-- [ ] First web UI (Next.js, kept minimal)
+- [ ] Embed dashboard in bak-dev.com (Next.js port)
 
 ### Phase 3 — Presence module (Weeks 8–10, ~25h)
 The SaaS-shaped piece — by now there is audience and product to point at.
@@ -131,6 +132,7 @@ career-os apply <job-key>                     # add to pipeline tracker (drafted
 career-os advance <job-key> --to interview    # move along pipeline stages
 career-os status                              # pipeline funnel + recent activity
 career-os eval --dry-run                      # scorer calibration regression check
+career-os dashboard                           # Streamlit dashboard (pip install -e ".[dashboard]")
 ```
 
 The default SQLite DB lives at `data/career_os.db` (gitignored).
@@ -158,6 +160,9 @@ Postgres swap-in is planned for Phase 2.
 │   ├── digest/email.py      # Resend / Postmark / Gmail SMTP adapters
 │   ├── tracker/pipeline.py  # application stages: drafted → sent → ... → won/rejected
 │   ├── eval/scorer_eval.py  # regression-guard for scorer calibration
+│   ├── dashboard/           # Streamlit dashboard — funnel, top matches, source health
+│   │   ├── app.py           #   the UI (run via `career-os dashboard`)
+│   │   └── queries.py       #   pure-data queries, testable without streamlit
 │   ├── db/store.py          # SQLite store with Postgres-shaped schema
 │   ├── models.py            # Pydantic models: JobPost, Score, Profile, Channel
 │   └── profile.py           # the user's profile fed to the scorer

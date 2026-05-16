@@ -378,6 +378,33 @@ def _stub_score_fn():
 
 
 @cli.command()
+@click.option("--port", default=8501, type=int)
+@click.option("--no-open", is_flag=True, help="Do not auto-open a browser tab.")
+def dashboard(port: int, no_open: bool) -> None:
+    """Launch the Streamlit dashboard. Install with: pip install -e \".[dashboard]\""""
+    import os
+    import subprocess
+    from pathlib import Path
+    try:
+        import streamlit  # noqa: F401
+    except ImportError:
+        console.print(
+            "[red]Streamlit not installed.[/red] Install dashboard extras with:\n"
+            "  [bold]pip install -e \".[dashboard]\"[/bold]"
+        )
+        sys.exit(1)
+    app_path = Path(__file__).resolve().parent.parent / "dashboard" / "app.py"
+    cmd = [
+        "streamlit", "run", str(app_path),
+        "--server.port", str(port),
+        "--server.headless", "true" if no_open else "false",
+        "--browser.gatherUsageStats", "false",
+    ]
+    console.print(f"[green]Launching dashboard on http://localhost:{port}[/green]")
+    subprocess.run(cmd, env={**os.environ, "PYTHONPATH": str(Path.cwd() / "src")}, check=False)
+
+
+@cli.command()
 def sources() -> None:
     """List registered scrapers."""
     table = Table(title="Registered scrapers")
