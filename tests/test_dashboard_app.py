@@ -9,11 +9,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from streamlit.testing.v1 import AppTest
 
-from career_os.db import Store
-from career_os.models import Channel, JobPost, Score
-from career_os.tracker import record_application
+# Dashboard tests only run when the [dashboard] extras are installed.
+# CI installs [dev] by default; the streamlit-installed jobs run separately.
+pytest.importorskip("streamlit")
+from streamlit.testing.v1 import AppTest  # noqa: E402
+
+from career_os.db import Store  # noqa: E402
+from career_os.models import Channel, JobPost, Score  # noqa: E402
+from career_os.tracker import record_application  # noqa: E402
 
 APP_PATH = str(
     Path(__file__).resolve().parent.parent / "src" / "career_os" / "dashboard" / "app.py"
