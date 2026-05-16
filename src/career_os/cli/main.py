@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 import sys
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -384,10 +386,13 @@ def _stub_score_fn():
     help="Bind address. Default 0.0.0.0 (reachable from WSL host); use 127.0.0.1 for local-only.",
 )
 @click.option("--no-open", is_flag=True, help="Do not auto-open a browser tab.")
-def dashboard(port: int, address: str, no_open: bool) -> None:
+@click.option(
+    "--diagnose", is_flag=True,
+    help="Print network diagnostics + WSL/Windows-side fix recipes and exit.",
+)
+def dashboard(port: int, address: str, no_open: bool, diagnose: bool) -> None:
     """Launch the Streamlit dashboard. Install with: pip install -e \".[dashboard]\""""
-    import subprocess
-    from pathlib import Path
+    from ..dashboard.network import build_reachable_urls, detect_environment, render_diagnostics
     try:
         import streamlit  # noqa: F401
     except ImportError:
@@ -396,11 +401,16 @@ def dashboard(port: int, address: str, no_open: bool) -> None:
             "  [bold]pip install -e \".[dashboard]\"[/bold]"
         )
         sys.exit(1)
+
+    env = detect_environment()
+    if diagnose:
+        console.print(render_diagnostics(env, port))
+        return
+
     app_path = Path(__file__).resolve().parent.parent / "dashboard" / "app.py"
     # Use the current interpreter to invoke streamlit. Calling bare `streamlit`
-    # only works if .venv/bin is on PATH (i.e. the venv is activated). Running
-    # via `python -m streamlit` always finds the right binary regardless of
-    # whether the user activated the venv.
+    # only works if .venv/bin is on PATH. Running via `python -m streamlit`
+    # always finds the right binary regardless of venv-activation state.
     cmd = [
         sys.executable, "-m", "streamlit", "run", str(app_path),
         "--server.port", str(port),
@@ -408,8 +418,17 @@ def dashboard(port: int, address: str, no_open: bool) -> None:
         "--server.headless", "true" if no_open else "false",
         "--browser.gatherUsageStats", "false",
     ]
-    display_host = "localhost" if address in ("0.0.0.0", "127.0.0.1") else address
-    console.print(f"[green]Launching dashboard on http://{display_host}:{port}[/green]")
+    urls = build_reachable_urls(env, address, port)
+    console.print("[bold green]Dashboard URLs[/bold green] (try these in your browser):")
+    for label, url in urls:
+        console.print(f"  • {url}  [dim]{label}[/dim]")
+    if env.is_wsl and address != "127.0.0.1":
+        console.print(
+            "\n[dim]WSL2 detected — if localhost fails from Windows, use the WSL2 IP above.[/dim]"
+        )
+        console.print(
+            "[dim]For deeper diagnostics: [bold]career-os dashboard --diagnose[/bold][/dim]"
+        )
     subprocess.run(cmd, check=False)
 
 
