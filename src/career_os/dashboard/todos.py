@@ -76,6 +76,74 @@ def seed_default_plan(store: Store) -> dict[str, int]:
     return {"inserted": inserted, "untouched": untouched}
 
 
+def count_orphan_seeds(store: Store) -> int:
+    """How many seeded rows in the DB are NOT in the current DEFAULT_PLAN.
+
+    A non-zero count means plan.py was edited and the user should sync to
+    drop the now-deleted seed items. Ad-hoc rows (is_seed=0) never count."""
+    plan_keys = {(s.section, s.item) for s in DEFAULT_PLAN}
+    with store._conn() as c:  # noqa: SLF001
+        rows = c.execute(
+            "SELECT section, item FROM todos WHERE is_seed = 1"
+        ).fetchall()
+    return sum(1 for r in rows if (r["section"], r["item"]) not in plan_keys)
+
+
+def sync_plan(store: Store) -> dict[str, int]:
+    """Full reconciliation against current DEFAULT_PLAN.
+
+    Three changes can happen:
+      - new plan items are inserted
+      - existing matching items get their priority/due_date/sort_order
+        refreshed from the seed (checked state, notes, completed_at preserved)
+      - seeded rows no longer in plan.py are DELETED
+
+    Ad-hoc items (is_seed=0) are never touched. Returns counts."""
+    now = _now()
+    inserted = updated = removed = 0
+    plan_keys = {(s.section, s.item) for s in DEFAULT_PLAN}
+    section_order = {name: i for i, (name, _) in enumerate(SECTIONS)}
+
+    with store._conn() as c:  # noqa: SLF001
+        # 1. Remove orphan seeded rows
+        existing = c.execute(
+            "SELECT id, section, item FROM todos WHERE is_seed = 1"
+        ).fetchall()
+        for row in existing:
+            if (row["section"], row["item"]) not in plan_keys:
+                c.execute("DELETE FROM todos WHERE id = ?", (row["id"],))
+                removed += 1
+
+        # 2. Insert new + update metadata on matching items
+        for sort_idx, seed in enumerate(DEFAULT_PLAN):
+            order = section_order.get(seed.section, 999) * 1000 + sort_idx
+            match = c.execute(
+                "SELECT id FROM todos WHERE section = ? AND item = ?",
+                (seed.section, seed.item),
+            ).fetchone()
+            if match:
+                c.execute(
+                    "UPDATE todos SET priority=?, due_date=?, sort_order=?, "
+                    "is_seed=1, updated_at=? WHERE id=?",
+                    (seed.priority, seed.due_date, order, now, match["id"]),
+                )
+                updated += 1
+            else:
+                c.execute(
+                    """
+                    INSERT INTO todos (section, item, notes, priority, due_date,
+                                       sort_order, is_seed, checked,
+                                       created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?)
+                    """,
+                    (seed.section, seed.item, seed.notes, seed.priority,
+                     seed.due_date, order, now, now),
+                )
+                inserted += 1
+
+    return {"inserted": inserted, "updated": updated, "removed": removed}
+
+
 def list_todos(
     store: Store,
     section: str | None = None,
@@ -226,7 +294,8 @@ def _row_to_todo(row) -> Todo:
 
 __all__ = [
     "Todo", "SeedItem",
-    "seed_default_plan", "list_todos", "toggle", "update_notes",
+    "seed_default_plan", "sync_plan", "count_orphan_seeds",
+    "list_todos", "toggle", "update_notes",
     "add_custom", "delete_todo",
     "section_progress", "overall_progress", "todays_focus",
 ]

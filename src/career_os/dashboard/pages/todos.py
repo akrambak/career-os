@@ -40,11 +40,21 @@ def render() -> None:
     store = _store()
     _ensure_seeded(store)
 
-    st.title("To-Do · 12-Week Sprint")
+    st.title("To-Do · Career Asset Plan")
     st.caption(
-        "Deadline 2026-08-08. Edit `src/career_os/dashboard/plan.py` to change "
-        "the seeded items — your checked state is preserved on re-seed."
+        "Compounding public assets across AI · TypeScript · Blockchain · Trading. "
+        "Edit `src/career_os/dashboard/plan.py` to change items — your checked "
+        "state and notes survive re-syncing."
     )
+
+    # Banner if plan.py has been edited and the DB still has now-deleted items.
+    orphans = todos_lib.count_orphan_seeds(store)
+    if orphans:
+        banner = st.warning(
+            f"📋 {orphans} seeded item(s) in your DB are no longer in the current "
+            "plan.py. Click **Sync plan** in the sidebar to apply the latest plan."
+        )
+        del banner  # silence unused
 
     # ---- Header KPIs ------------------------------------------------------
     done, total = todos_lib.overall_progress(store)
@@ -72,10 +82,20 @@ def render() -> None:
         open_only = st.toggle("Open only", value=True)
         query = st.text_input("Search", placeholder="laravel, dev.to, …")
         st.divider()
-        if st.button("🔁 Re-seed plan", use_container_width=True,
-                     help="Insert any new items from plan.py. Existing rows untouched."):
-            res = todos_lib.seed_default_plan(store)
-            st.success(f"Inserted {res['inserted']}, untouched {res['untouched']}")
+        if st.button(
+            "🔄 Sync plan", use_container_width=True,
+            help=(
+                "Reconciles DB with current plan.py: inserts new, updates "
+                "priorities/dates on matching items, removes seeded items no "
+                "longer in the plan. Your checked state + notes are preserved."
+            ),
+        ):
+            res = todos_lib.sync_plan(store)
+            st.success(
+                f"Synced: +{res['inserted']} inserted · "
+                f"~{res['updated']} updated · −{res['removed']} removed"
+            )
+            st.rerun()
 
         with st.expander("➕ Add ad-hoc item"), st.form("add_todo", clear_on_submit=True):
             new_section = st.selectbox("Section", options=sections_in_db or [SECTIONS[0][0]])

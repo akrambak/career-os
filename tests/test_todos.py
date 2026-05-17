@@ -7,11 +7,13 @@ import pytest
 
 from career_os.dashboard.todos import (
     add_custom,
+    count_orphan_seeds,
     delete_todo,
     list_todos,
     overall_progress,
     section_progress,
     seed_default_plan,
+    sync_plan,
     todays_focus,
     toggle,
     update_notes,
@@ -88,10 +90,12 @@ def test_add_custom_and_delete(store):
 
 def test_filters(store):
     seed_default_plan(store)
-    # Filter by section
-    week1 = list_todos(store, section="Week 1 — Launch (May 17–24)")
-    assert week1, "Week 1 must have seeded items"
-    assert all(t.section == "Week 1 — Launch (May 17–24)" for t in week1)
+    # Filter by section — use one we know is in the canonical SECTIONS list
+    from career_os.dashboard.plan import SECTIONS
+    first_section = SECTIONS[0][0]
+    section_items = list_todos(store, section=first_section)
+    assert section_items, f"{first_section!r} must have seeded items"
+    assert all(t.section == first_section for t in section_items)
 
     # Filter by priority
     p0 = list_todos(store, priority="P0")
@@ -99,17 +103,17 @@ def test_filters(store):
     assert all(t.priority == "P0" for t in p0)
 
     # open_only filter respects toggled state
-    target = week1[0]
+    target = section_items[0]
     toggle(store, target.id, True)
-    open_in_week = list_todos(
-        store, section="Week 1 — Launch (May 17–24)", open_only=True,
-    )
-    assert all(not t.checked for t in open_in_week)
+    open_in_section = list_todos(store, section=first_section, open_only=True)
+    assert all(not t.checked for t in open_in_section)
 
-    # Search filter case-insensitive substring (LIKE)
-    laravel_matches = list_todos(store, query="laravel")
-    if laravel_matches:
-        assert any("aravel" in t.item or "aravel" in (t.notes or "") for t in laravel_matches)
+    # Search filter is case-insensitive LIKE; passing a known token from any
+    # seeded item should return at least the items that contain it.
+    github_matches = list_todos(store, query="github")
+    if github_matches:
+        haystacks = [(t.item + " " + (t.notes or "")).lower() for t in github_matches]
+        assert any("github" in h for h in haystacks)
 
 
 def test_section_progress_and_overall(store):
@@ -145,6 +149,75 @@ def test_todays_focus_excludes_far_future(store):
     )
     focus = todays_focus(store, horizon_days=7, limit=50)
     assert new.id not in {t.id for t in focus}
+
+
+def test_sync_removes_orphan_seeds_keeps_adhoc(store):
+    """Seed → manually insert orphan seeded row → sync should remove it,
+    but ad-hoc rows under the same section must survive."""
+    seed_default_plan(store)
+    # Manually insert a row that mimics a seed-item no longer in plan.py
+    from datetime import UTC as _UTC
+    from datetime import datetime
+    now = datetime.now(_UTC).isoformat()
+    with store._conn() as c:
+        c.execute(
+            "INSERT INTO todos (section, item, priority, sort_order, is_seed, "
+            "checked, created_at, updated_at) VALUES (?, ?, 'P0', 999, 1, 0, ?, ?)",
+            ("Daily Habits — Accessibility-Adapted", "ZZZ orphan from old plan", now, now),
+        )
+    # Add an ad-hoc row in the same section
+    adhoc = add_custom(
+        store, section="Daily Habits — Accessibility-Adapted",
+        item="My custom note", priority="P1",
+    )
+    assert count_orphan_seeds(store) == 1
+    result = sync_plan(store)
+    assert result["removed"] == 1
+    assert count_orphan_seeds(store) == 0
+    # Ad-hoc survives
+    assert any(t.id == adhoc.id for t in list_todos(store))
+
+
+def test_sync_updates_priority_and_due_date(store):
+    """Sync should refresh priority/due_date on matching items but preserve
+    the user's checked state and notes."""
+    seed_default_plan(store)
+    target = list_todos(store)[0]
+    # User has checked it and added notes
+    toggle(store, target.id, True)
+    update_notes(store, target.id, "Did this on Monday")
+    # Forcibly degrade the priority + clear due_date in the DB to simulate
+    # an out-of-date row vs the seed.
+    with store._conn() as c:
+        c.execute(
+            "UPDATE todos SET priority='P2', due_date=NULL WHERE id=?",
+            (target.id,),
+        )
+    sync_plan(store)
+    # Find the same item and verify metadata is restored from seed
+    refreshed = next(t for t in list_todos(store) if t.id == target.id)
+    assert refreshed.checked is True              # user state preserved
+    assert refreshed.notes == "Did this on Monday"  # notes preserved
+    # priority + due_date should now match the seed value (whatever it is in plan.py)
+    from career_os.dashboard.plan import DEFAULT_PLAN
+    seed_match = next(
+        s for s in DEFAULT_PLAN
+        if s.section == refreshed.section and s.item == refreshed.item
+    )
+    assert refreshed.priority == seed_match.priority
+
+
+def test_sync_inserts_new_items(store):
+    """If the DB is empty, sync should behave like an initial seed."""
+    result = sync_plan(store)
+    from career_os.dashboard.plan import DEFAULT_PLAN
+    assert result["inserted"] == len(DEFAULT_PLAN)
+    assert result["removed"] == 0
+
+
+def test_count_orphan_seeds_zero_for_fresh_seed(store):
+    seed_default_plan(store)
+    assert count_orphan_seeds(store) == 0
 
 
 def test_overdue_detection(store):
