@@ -31,6 +31,9 @@ MODULES = [
     "career_os.scrapers.hn_freelancer",
     "career_os.scrapers.hn_whoishiring",
     "career_os.dashboard.queries",
+    "career_os.dashboard.network",
+    "career_os.dashboard.todos",
+    "career_os.dashboard.plan",
     "career_os.cli.main",
 ]
 

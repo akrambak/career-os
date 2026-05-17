@@ -58,6 +58,29 @@ CREATE TABLE IF NOT EXISTS drafts (
     model           TEXT NOT NULL,
     drafted_at      TEXT NOT NULL
 );
+
+-- The To-Do / Plan page persists the user's progress against the seeded
+-- 12-week plan (and any ad-hoc items they add). (section, item) is unique
+-- so the seeder can be idempotent — re-running it never clobbers state.
+CREATE TABLE IF NOT EXISTS todos (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    section       TEXT NOT NULL,
+    item          TEXT NOT NULL,
+    notes         TEXT,
+    priority      TEXT NOT NULL DEFAULT 'P2',
+    due_date      TEXT,
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    is_seed       INTEGER NOT NULL DEFAULT 0,
+    checked       INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    completed_at  TEXT,
+    UNIQUE(section, item)
+);
+
+CREATE INDEX IF NOT EXISTS idx_todos_section ON todos(section);
+CREATE INDEX IF NOT EXISTS idx_todos_checked ON todos(checked);
+CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);
 """
 
 
