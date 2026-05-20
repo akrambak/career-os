@@ -9,27 +9,70 @@ from email.utils import parsedate_to_datetime
 import httpx
 
 from ..models import Channel, JobPost
+from ..watermark import WatermarkCtx
 from .base import Scraper
 
 
 class WeWorkRemotelyScraper(Scraper):
     key = "weworkremotely"
     feeds = [
-        ("https://weworkremotely.com/categories/remote-programming-jobs.rss", Channel.FT),
+        (
+            "https://weworkremotely.com/categories/remote-programming-jobs.rss",
+            Channel.FT,
+            "programming",
+        ),
         (
             "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss",
             Channel.FT,
+            "fullstack",
         ),
     ]
 
-    async def fetch(self, client: httpx.AsyncClient) -> AsyncIterator[JobPost]:
+    async def fetch(
+        self,
+        client: httpx.AsyncClient,
+        watermarks: WatermarkCtx | None = None,
+    ) -> AsyncIterator[JobPost]:
         seen: set[str] = set()
-        for feed_url, channel in self.feeds:
+        for feed_url, channel, subfeed in self.feeds:
+            wm_key = f"{self.key}:{subfeed}"
+            prior = watermarks.get(wm_key) if watermarks else None
+
+            # Conditional-GET headers: send If-Modified-Since + If-None-Match
+            # when we have prior state. Server returns 304 → record
+            # 'unchanged' + yield nothing for this sub-feed.
+            req_headers = dict(self._client_headers())
+            if prior:
+                if prior.etag:
+                    req_headers["If-None-Match"] = prior.etag
+                if prior.last_modified:
+                    req_headers["If-Modified-Since"] = prior.last_modified
+
             try:
-                r = await client.get(feed_url, headers=self._client_headers(), timeout=30.0)
+                r = await client.get(feed_url, headers=req_headers, timeout=30.0)
+            except httpx.HTTPError:
+                if watermarks:
+                    watermarks.record(wm_key, status="failed")
+                continue
+
+            if r.status_code == 304:
+                if watermarks:
+                    watermarks.record(wm_key, status="unchanged")
+                continue
+            try:
                 r.raise_for_status()
             except httpx.HTTPError:
+                if watermarks:
+                    watermarks.record(wm_key, status="failed")
                 continue
+
+            if watermarks:
+                watermarks.record(
+                    wm_key, status="ok",
+                    etag=r.headers.get("ETag"),
+                    last_modified=r.headers.get("Last-Modified"),
+                )
+
             root = ET.fromstring(r.content)
             for item in root.findall(".//item"):
                 job = self._parse(item, channel)

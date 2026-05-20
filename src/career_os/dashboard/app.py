@@ -15,7 +15,16 @@ from __future__ import annotations
 
 import streamlit as st
 
-from career_os.dashboard.pages import kpis, overview, todos
+from career_os.dashboard.pages import (
+    automations,
+    ideas,
+    inbox,
+    kpis,
+    overview,
+    posts,
+    todos,
+    trends,
+)
 
 st.set_page_config(
     page_title="Career-OS",
@@ -27,8 +36,18 @@ st.set_page_config(
 PAGES = [
     st.Page(overview.render, title="Overview", icon="📊",
             url_path="overview", default=True),
+    st.Page(inbox.render, title="Inbox", icon="📥",
+            url_path="inbox"),
+    st.Page(automations.render, title="Automations", icon="🤖",
+            url_path="automations"),
     st.Page(todos.render, title="To-Do · Plan", icon="✅",
             url_path="todos"),
+    st.Page(ideas.render, title="Ideas", icon="💡",
+            url_path="ideas"),
+    st.Page(posts.render, title="Posts", icon="📝",
+            url_path="posts"),
+    st.Page(trends.render, title="Trends", icon="📡",
+            url_path="trends"),
     st.Page(kpis.render, title="KPIs", icon="📈",
             url_path="kpis"),
 ]

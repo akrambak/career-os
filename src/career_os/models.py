@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+
+from .salary import Compensation
 
 
 def _utc_now() -> datetime:
@@ -17,6 +19,18 @@ class Channel(StrEnum):
 
 
 class JobPost(BaseModel):
+    """A single posting from any source.
+
+    `compensation` is the source's free-text salary string (preserved for
+    display). `parsed_compensation` is the structured form (see
+    `career_os.salary.Compensation`) — set by scrapers at ingest time and
+    by `_row_to_job` when reading from the DB. None means we couldn't
+    extract structure; the raw string is still in `compensation`.
+    """
+    # Compensation is a frozen dataclass, not a pydantic model — allow it as a
+    # field by skipping pydantic's arbitrary-type guard.
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     source: str = Field(description="scraper key, e.g. 'remoteok'")
     external_id: str = Field(description="stable id from the source")
     url: HttpUrl
@@ -27,6 +41,7 @@ class JobPost(BaseModel):
     tags: list[str] = Field(default_factory=list)
     channel: Channel = Channel.EITHER
     compensation: str | None = None
+    parsed_compensation: Compensation | None = None
     posted_at: datetime | None = None
     fetched_at: datetime = Field(default_factory=_utc_now)
 

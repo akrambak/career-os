@@ -88,12 +88,16 @@ def test_drafts_ready_excludes_applied(tmp_path):
 
 def test_funnel_returns_all_stages(tmp_path):
     store = _store(tmp_path)
+    # Default _seed_job uses Channel.FT.
     k = _seed_job(store, "1", fit=80)
     record_application(store, k, stage="interview")
     f = funnel(store)
-    assert f["interview"] == 1
-    assert f["drafted"] == 0
-    assert f["won"] == 0
+    # Tier 3 Upgrade 11: nested {"ft": {...}, "freelance": {...}}.
+    assert f["ft"]["interview"] == 1
+    assert f["ft"]["drafted"] == 0
+    assert f["ft"]["won"] == 0
+    # Freelance pipeline exists but is empty.
+    assert f["freelance"]["sent"] == 0
 
 
 def test_source_health_aggregates(tmp_path):

@@ -8,6 +8,8 @@ from html import unescape
 import httpx
 
 from ..models import Channel, JobPost
+from ..salary import parse as parse_salary
+from ..watermark import WatermarkCtx
 from .base import Scraper
 
 ALGOLIA_SEARCH = "https://hn.algolia.com/api/v1/search_by_date"
@@ -25,10 +27,22 @@ class HNFreelancerScraper(Scraper):
 
     key = "hn_freelancer"
 
-    async def fetch(self, client: httpx.AsyncClient) -> AsyncIterator[JobPost]:
+    async def fetch(
+        self,
+        client: httpx.AsyncClient,
+        watermarks: WatermarkCtx | None = None,
+    ) -> AsyncIterator[JobPost]:
         story_id = await self._find_latest_thread(client)
         if story_id is None:
             return
+
+        # Watermark per story_id: thread roll-over (new month) → fresh state.
+        # Algolia /items/<id> doesn't accept numericFilters server-side, so
+        # we filter created_at_i client-side using the cursor.
+        wm_key = f"{self.key}:{story_id}"
+        prior = watermarks.get(wm_key) if watermarks else None
+        cursor = _safe_int(prior.last_cursor) if prior else None
+
         r = await client.get(
             ALGOLIA_ITEM.format(story_id),
             headers=self._client_headers(),
@@ -36,10 +50,25 @@ class HNFreelancerScraper(Scraper):
         )
         r.raise_for_status()
         thread = r.json()
+        max_created_at = cursor or 0
+        yielded_any = False
         for child in thread.get("children", []) or []:
+            created_at_i = _safe_int(child.get("created_at_i"))
+            if cursor is not None and created_at_i is not None and created_at_i <= cursor:
+                continue
             job = self._parse(child, story_id)
             if job:
+                yielded_any = True
                 yield job
+                if created_at_i is not None and created_at_i > max_created_at:
+                    max_created_at = created_at_i
+
+        if watermarks:
+            status = "ok" if yielded_any else ("unchanged" if cursor else "ok")
+            watermarks.record(
+                wm_key, status=status,
+                last_cursor=str(max_created_at) if max_created_at else None,
+            )
 
     async def _find_latest_thread(self, client: httpx.AsyncClient) -> int | None:
         params = {
@@ -80,6 +109,9 @@ class HNFreelancerScraper(Scraper):
         extracted = _extract_fields(plain)
         title = _first_line(plain, max_len=120) or "HN Freelance lead"
         tags = ["freelance", "hn"] + extracted["stack"]
+        parsed_comp = (
+            parse_salary(extracted["budget"]) if extracted["budget"] else None
+        )
         return JobPost(
             source=self.key,
             external_id=str(cid),
@@ -91,8 +123,16 @@ class HNFreelancerScraper(Scraper):
             tags=tags,
             channel=Channel.FREELANCE,
             compensation=extracted["budget"],
+            parsed_compensation=parsed_comp if parsed_comp and parsed_comp.known else None,
             posted_at=posted_at,
         )
+
+
+def _safe_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _first_line(text: str, max_len: int) -> str:

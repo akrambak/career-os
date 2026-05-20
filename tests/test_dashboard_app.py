@@ -96,10 +96,13 @@ def test_dashboard_renders_with_seeded_data(isolated_db):
     at = AppTest.from_file(APP_PATH).run(timeout=10)
     assert not at.exception
     metric_values = [m.value for m in at.metric]
-    assert metric_values[0] == "4"   # jobs
-    assert metric_values[1] == "4"   # scored
-    assert metric_values[2] == "1"   # drafts
-    assert metric_values[3] == "1"   # applications
+    # Pillar 4 added 5 focus-banner metrics; totals (jobs/scored/drafts/apps)
+    # start at index 5.
+    totals_start = 5
+    assert metric_values[totals_start] == "4"      # jobs
+    assert metric_values[totals_start + 1] == "4"  # scored
+    assert metric_values[totals_start + 2] == "1"  # drafts
+    assert metric_values[totals_start + 3] == "1"  # applications
 
 
 def test_dashboard_min_fit_slider_filters_table(isolated_db):
@@ -135,9 +138,10 @@ def test_dashboard_min_fit_slider_can_be_adjusted(isolated_db):
 
 
 def test_dashboard_funnel_shows_stage_counts(isolated_db):
-    _seed(isolated_db, fit=80, key="a", with_application="sent")
-    _seed(isolated_db, fit=80, key="b", with_application="interview")
-    _seed(isolated_db, fit=80, key="c", with_application="interview")
+    # FT channel for 'interview' stage (Tier 3 Upgrade 11 separates pipelines).
+    _seed(isolated_db, fit=80, key="a", channel=Channel.FT, with_application="sent")
+    _seed(isolated_db, fit=80, key="b", channel=Channel.FT, with_application="interview")
+    _seed(isolated_db, fit=80, key="c", channel=Channel.FT, with_application="interview")
     at = AppTest.from_file(APP_PATH).run(timeout=10)
     assert not at.exception
     all_md = " ".join(m.value for m in at.markdown)

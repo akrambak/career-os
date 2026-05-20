@@ -19,10 +19,12 @@ from ..profile import DEFAULT_PROFILE
 from ..scorer import ClaudeScorer, score_pending
 from ..scrapers import REGISTRY
 from ..tracker import (
-    STAGES,
+    ALL_STAGES,
+    TERMINAL,
     StageTransitionError,
     funnel_counts,
     record_application,
+    stages_for_channel,
 )
 from ..tracker import (
     advance as tracker_advance,
@@ -47,18 +49,25 @@ def cli(verbose: bool) -> None:
     "--source", "sources", multiple=True,
     help="Specific scraper key(s). Default: all registered.",
 )
-def fetch(sources: tuple[str, ...]) -> None:
+@click.option(
+    "--full-refresh", is_flag=True,
+    help="Ignore source watermarks and re-pull everything. Debug / first-run.",
+)
+def fetch(sources: tuple[str, ...], full_refresh: bool) -> None:
     """Run scrapers and store new postings."""
     import asyncio
     settings = Settings.load()
     store = Store(settings.database_url)
     keys = list(sources) or None
-    results = asyncio.run(crawl(store, keys))
+    results = asyncio.run(crawl(store, keys, use_watermarks=not full_refresh))
     table = Table(title="Crawl results")
     table.add_column("source")
     table.add_column("new jobs", justify="right")
+    table.add_column("status")
     for src, count in results.items():
-        table.add_row(src, str(count))
+        wm = store.get_watermark(src)
+        status = wm.last_status if wm else "—"
+        table.add_row(src, str(count), status)
     console.print(table)
 
 
@@ -253,8 +262,8 @@ def draft(job_key: str | None, top_n: int | None, min_fit: int, dry_run: bool, s
 @cli.command()
 @click.argument("job_key")
 @click.option(
-    "--stage", type=click.Choice(list(STAGES)), default="drafted",
-    help="Initial stage. Default: drafted.",
+    "--stage", type=click.Choice(list(ALL_STAGES)), default="drafted",
+    help="Initial stage. Default: drafted. Stage must match the job's channel pipeline.",
 )
 @click.option("--notes", default=None)
 def apply(job_key: str, stage: str, notes: str | None) -> None:
@@ -266,14 +275,14 @@ def apply(job_key: str, stage: str, notes: str | None) -> None:
     except StageTransitionError as exc:
         console.print(f"[red]{exc}[/red]")
         sys.exit(1)
-    console.print(f"[green]ok[/green] · {app.job_key} → {app.stage}")
+    console.print(f"[green]ok[/green] · {app.job_key} → {app.stage} ({app.channel})")
 
 
 @cli.command()
 @click.argument("job_key")
 @click.option(
-    "--to", "to_stage", type=click.Choice(list(STAGES)), default=None,
-    help="Target stage. Default: next stage in the pipeline.",
+    "--to", "to_stage", type=click.Choice(list(ALL_STAGES)), default=None,
+    help="Target stage. Default: next stage in this application's pipeline.",
 )
 @click.option("--notes", default=None)
 def advance(job_key: str, to_stage: str | None, notes: str | None) -> None:
@@ -285,40 +294,61 @@ def advance(job_key: str, to_stage: str | None, notes: str | None) -> None:
     except StageTransitionError as exc:
         console.print(f"[red]{exc}[/red]")
         sys.exit(1)
-    console.print(f"[green]ok[/green] · {app.job_key} → {app.stage}")
+    console.print(f"[green]ok[/green] · {app.job_key} → {app.stage} ({app.channel})")
 
 
 @cli.command()
 @click.option(
-    "--stage", type=click.Choice(list(STAGES)), default=None,
+    "--stage", type=click.Choice(list(ALL_STAGES)), default=None,
     help="Only show applications in this stage.",
 )
-def status(stage: str | None) -> None:
-    """Show the application pipeline: funnel counts + recent activity."""
+@click.option(
+    "--channel", type=click.Choice(["ft", "freelance"]), default=None,
+    help="Only show applications in this channel's pipeline.",
+)
+def status(stage: str | None, channel: str | None) -> None:
+    """Show the application pipeline: per-channel funnels + recent activity."""
     settings = Settings.load()
     store = Store(settings.database_url)
     counts = funnel_counts(store)
 
-    funnel = Table(title="Pipeline funnel", show_lines=False)
-    funnel.add_column("stage")
-    funnel.add_column("count", justify="right")
-    total = sum(counts.values())
-    for s in STAGES:
-        funnel.add_row(s, str(counts[s]))
-    funnel.add_section()
-    funnel.add_row("TOTAL", str(total))
-    console.print(funnel)
+    for channel_label, channel_key in (("FT pipeline", "ft"), ("Freelance pipeline", "freelance")):
+        if channel and channel != channel_key:
+            continue
+        channel_counts = counts.get(channel_key, {})
+        funnel = Table(title=channel_label, show_lines=False)
+        funnel.add_column("stage")
+        funnel.add_column("count", justify="right")
+        total = sum(channel_counts.values())
+        for s in stages_for_channel(channel_key):
+            funnel.add_row(
+                s + (" (terminal)" if s in TERMINAL else ""),
+                str(channel_counts.get(s, 0)),
+            )
+        funnel.add_section()
+        funnel.add_row("TOTAL", str(total))
+        console.print(funnel)
 
-    rows = list_applications(store, stage=stage)
+    rows = list_applications(store, stage=stage, channel=channel)
     if not rows:
         return
-    listing = Table(title=f"Applications{f' · {stage}' if stage else ''}", show_lines=False)
+    title_suffix = []
+    if channel:
+        title_suffix.append(channel)
+    if stage:
+        title_suffix.append(stage)
+    suffix = f" · {' · '.join(title_suffix)}" if title_suffix else ""
+    listing = Table(title=f"Applications{suffix}", show_lines=False)
+    listing.add_column("channel")
     listing.add_column("stage")
     listing.add_column("title")
     listing.add_column("key")
     listing.add_column("updated")
     for app, title in rows[:20]:
-        listing.add_row(app.stage, title[:48], app.job_key, app.updated_at.date().isoformat())
+        listing.add_row(
+            app.channel, app.stage, title[:48], app.job_key,
+            app.updated_at.date().isoformat(),
+        )
     console.print(listing)
 
 
@@ -430,6 +460,99 @@ def dashboard(port: int, address: str, no_open: bool, diagnose: bool) -> None:
             "[dim]For deeper diagnostics: [bold]career-os dashboard --diagnose[/bold][/dim]"
         )
     subprocess.run(cmd, check=False)
+
+
+@cli.command()
+@click.option("--limit", default=200, type=int)
+@click.option("--max-age-days", default=7, type=int,
+              help="Only recheck jobs not rechecked in this many days.")
+@click.option("--source", default=None,
+              help="Restrict recheck to one scraper key.")
+@click.option("--concurrency", default=10, type=int)
+def recheck(limit: int, max_age_days: int, source: str | None, concurrency: int) -> None:
+    """Re-check job URLs; mark 404/redirected/3-strikes as closed."""
+    import asyncio
+
+    from ..recheck import recheck as run_recheck
+    from ..recheck import summarize
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    outcomes = asyncio.run(run_recheck(
+        store, limit=limit, max_age_days=max_age_days,
+        source=source, concurrency=concurrency,
+    ))
+    if not outcomes:
+        console.print("[yellow]No candidates to recheck — DB is fresh.[/yellow]")
+        return
+    summary = summarize(outcomes)
+    table = Table(title=f"Recheck — {len(outcomes)} job(s)")
+    table.add_column("decision")
+    table.add_column("count", justify="right")
+    for decision in ("kept", "closed", "transient"):
+        table.add_row(decision, str(summary.get(decision, 0)))
+    console.print(table)
+    closed = [o for o in outcomes if o.decision == "closed"]
+    if closed:
+        listing = Table(title="Newly closed", show_lines=False)
+        listing.add_column("key")
+        listing.add_column("reason")
+        listing.add_column("status")
+        for o in closed[:20]:
+            listing.add_row(o.job_key, o.reason or "", str(o.status_code or "—"))
+        console.print(listing)
+
+
+@cli.command(name="trends-scan")
+@click.option(
+    "--source", "sources", multiple=True,
+    help="Specific source key(s). Default: all (hn, devto, tavily).",
+)
+def trends_scan(sources: tuple[str, ...]) -> None:
+    """Scrape trend feeds (HN frontpage, dev.to top, Tavily) and upsert
+    into the trends table. Idempotent."""
+    import asyncio
+
+    from ..profile import DEFAULT_PROFILE
+    from ..trends.sources import scan_sources
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    selected = list(sources) or None
+    results = asyncio.run(scan_sources(store, DEFAULT_PROFILE, sources=selected))
+    table = Table(title="Trend scan results")
+    table.add_column("source")
+    table.add_column("rows touched", justify="right")
+    for src, n in results.items():
+        table.add_row(src, str(n))
+    console.print(table)
+    if "tavily" in results and results["tavily"] == 0 and not settings.tavily_api_key:
+        console.print(
+            "[dim]tavily skipped — set TAVILY_API_KEY in .env to enable.[/dim]"
+        )
+
+
+@cli.command(name="automations-run-due")
+def automations_run_due() -> None:
+    """Fire every armed automation whose next-run is in the past.
+
+    Designed for cron — wire it as `* * * * * career-os automations-run-due`.
+    Safe to call frequently: only genuinely-due automations execute.
+    """
+    from ..automations import run_due, seed_defaults
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    seed_defaults(store)
+    results = run_due(store)
+    if not results:
+        console.print("[dim]Nothing due.[/dim]")
+        return
+    table = Table(title=f"Fired {len(results)} automation(s)")
+    table.add_column("name")
+    table.add_column("status")
+    table.add_column("summary")
+    for name, result in results.items():
+        color = {"ok": "green", "failed": "red", "skipped": "yellow"}.get(result.status, "white")
+        table.add_row(name, f"[{color}]{result.status}[/{color}]", result.summary)
+    console.print(table)
 
 
 @cli.command()

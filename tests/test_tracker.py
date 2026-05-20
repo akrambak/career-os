@@ -59,7 +59,10 @@ def test_funnel_counts_shape(tmp_path):
     record_application(store, k1, stage="sent")
     record_application(store, k2, stage="interview")
     counts = funnel_counts(store)
-    assert counts["sent"] == 1
-    assert counts["interview"] == 1
-    assert counts["drafted"] == 0
-    assert sum(counts.values()) == 2
+    # Tier 3 Upgrade 11: nested per-channel shape. Both seeded jobs are FT.
+    assert counts["ft"]["sent"] == 1
+    assert counts["ft"]["interview"] == 1
+    assert counts["ft"]["drafted"] == 0
+    assert counts["freelance"]["sent"] == 0
+    total = sum(sum(c.values()) for c in counts.values())
+    assert total == 2

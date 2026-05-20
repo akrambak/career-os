@@ -1,17 +1,31 @@
 from .pipeline import (
+    ALL_STAGES,
+    FREELANCE_STAGES,
+    FT_STAGES,
     STAGES,
+    STAGES_BY_CHANNEL,
+    TERMINAL,
     Application,
     StageTransitionError,
     advance,
+    flat_funnel_counts,
     funnel_counts,
     record_application,
+    stages_for_channel,
 )
 
 __all__ = [
+    "ALL_STAGES",
+    "FREELANCE_STAGES",
+    "FT_STAGES",
     "STAGES",
+    "STAGES_BY_CHANNEL",
+    "TERMINAL",
     "Application",
     "StageTransitionError",
     "advance",
+    "flat_funnel_counts",
     "funnel_counts",
     "record_application",
+    "stages_for_channel",
 ]
