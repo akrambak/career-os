@@ -7,6 +7,11 @@ from career_os.config import Settings
 from career_os.dashboard import ideas as ideas_lib
 from career_os.dashboard.ideas import CHANNELS
 from career_os.db import Store
+from career_os.presence import (
+    list_brainstorm_sessions,
+    read_idea_body,
+    spawn_brainstorm_session,
+)
 
 
 def _store() -> Store:
@@ -100,7 +105,13 @@ def render() -> None:
 
 
 def _render_idea_row(idea) -> None:
-    border = "🗄️ " if idea.archived else "💡 "
+    # Distinct icon for project ideas to make the brainstorm flow discoverable.
+    if idea.archived:
+        border = "🗄️ "
+    elif idea.channel == "project":
+        border = "🚧 "
+    else:
+        border = "💡 "
     with st.container(border=True):
         cols = st.columns([0.7, 0.3])
         with cols[0]:
@@ -113,6 +124,26 @@ def _render_idea_row(idea) -> None:
                 st.caption(idea.notes)
             st.caption(f"updated {idea.updated_at.date().isoformat()}")
         with cols[1]:
+            if (
+                idea.channel == "project"
+                and not idea.archived
+                and st.button(
+                    "💡 Brainstorm with Claude",
+                    key=f"brain_{idea.id}", use_container_width=True,
+                    type="primary",
+                    help="Spawns a new terminal running `claude` in a "
+                         "workdir seeded with this idea + the brainstorm prompt.",
+                )
+            ):
+                result = spawn_brainstorm_session(idea)
+                if result.ok:
+                    st.success(
+                        f"Brainstorm terminal launched. Workdir: "
+                        f"`{result.workdir}` — when Claude has edited "
+                        "IDEA.md, click **Pull updates** below."
+                    )
+                else:
+                    st.warning(result.fallback_message or "Spawn failed.")
             with st.popover("Edit", use_container_width=True):
                 _render_edit_form(idea)
             if not idea.archived:
@@ -129,6 +160,32 @@ def _render_idea_row(idea) -> None:
                     ideas_lib.archive(_store(), idea.id, archived=False)
                     st.cache_data.clear()
                     st.rerun()
+
+        # Prior brainstorm sessions surface for project-channel ideas only.
+        if idea.channel == "project":
+            sessions = list_brainstorm_sessions(idea.id)
+            if sessions:
+                with st.expander(f"Brainstorm sessions ({len(sessions)})", expanded=False):
+                    for sess in sessions[:8]:
+                        scols = st.columns([0.6, 0.4])
+                        scols[0].code(str(sess), language="text")
+                        if scols[1].button(
+                            "Pull updates ← IDEA.md",
+                            key=f"pull_idea_{idea.id}_{sess.name}",
+                            use_container_width=True,
+                        ):
+                            body = read_idea_body(sess)
+                            if body is None:
+                                st.error("IDEA.md is missing or unreadable.")
+                            else:
+                                # Brainstormed content lands in the notes field —
+                                # largest free-text we have on Idea.
+                                ideas_lib.update_idea(
+                                    _store(), idea.id, notes=body,
+                                )
+                                st.cache_data.clear()
+                                st.toast(f"Pulled from {sess.name}", icon="📥")
+                                st.rerun()
 
 
 def _render_edit_form(idea) -> None:

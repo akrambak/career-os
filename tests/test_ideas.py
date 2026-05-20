@@ -77,3 +77,29 @@ def test_counts_by_channel(store):
     assert counts["blog"] == 2
     assert counts["linkedin"] == 1
     assert counts["x"] == 0
+
+
+# ---- project channel -----------------------------------------------------
+
+def test_project_channel_is_registered():
+    assert "project" in ideas_lib.CHANNELS
+
+
+def test_add_idea_with_project_channel(store):
+    idea = ideas_lib.add_idea(
+        store, title="OSS Laravel + Claude scaffold",
+        hook="One-command starter for AI-agent Laravel apps",
+        channel="project", tags=["laravel", "claude", "oss"],
+    )
+    assert idea.channel == "project"
+    rows = ideas_lib.list_ideas(store, channel="project")
+    assert [r.id for r in rows] == [idea.id]
+
+
+def test_counts_by_channel_includes_project(store):
+    ideas_lib.add_idea(store, title="A", channel="project")
+    ideas_lib.add_idea(store, title="B", channel="project")
+    ideas_lib.add_idea(store, title="C", channel="blog")
+    counts = ideas_lib.counts_by_channel(store)
+    assert counts["project"] == 2
+    assert counts["blog"] == 1

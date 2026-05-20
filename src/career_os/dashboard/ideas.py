@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 from ..db import Store
 
-CHANNELS = ("blog", "linkedin", "x", "devto", "medium", "hn")
+CHANNELS = ("blog", "linkedin", "x", "devto", "medium", "hn", "project")
 
 
 @dataclass(frozen=True)
