@@ -12,11 +12,23 @@ from career_os.config import Settings
 from career_os.dashboard import posts as posts_lib
 from career_os.dashboard.posts import CHANNELS, STATUSES
 from career_os.db import Store
+from career_os.post_studio import (
+    CHANNEL_TARGETS as IDEA_CHANNEL_TARGETS,
+)
+from career_os.post_studio import (
+    CHANNELS as IDEA_CHANNELS,
+)
+from career_os.post_studio import (
+    IdeaInput,
+    extract_urls,
+    generate_from_idea,
+)
 from career_os.presence import (
     list_sessions,
     read_post_body,
     spawn_improve_session,
 )
+from career_os.profile import DEFAULT_PROFILE
 
 
 def _store() -> Store:
@@ -61,8 +73,17 @@ def render() -> None:
 
     st.divider()
 
+    settings = Settings.load()
+    has_api_key = bool(settings.anthropic_api_key)
+
+    with st.expander(
+        "💡 Draft from idea / links",
+        expanded=sum(counts.values()) == 0,
+    ):
+        _render_idea_generator(has_api_key, settings.anthropic_api_key)
+
     with (
-        st.expander("➕ New post", expanded=sum(counts.values()) == 0),
+        st.expander("➕ New post (blank)", expanded=False),
         st.form("add_post", clear_on_submit=True),
     ):
         new_title = st.text_input("Title", max_chars=200, key="new_post_title")
@@ -181,6 +202,115 @@ def _render_body_editor(post) -> None:
             posts_lib.delete_post(_store(), post.id)
             st.cache_data.clear()
             st.rerun()
+
+
+def _render_idea_generator(has_api_key: bool, api_key: str | None) -> None:
+    st.caption(
+        "Paste an idea, angle, or rough thought. URLs in the text become "
+        "references for the model. One draft is created per selected channel."
+    )
+    if not has_api_key:
+        st.info(
+            "ANTHROPIC_API_KEY not set — generator uses the dry-run template "
+            "(still creates editable drafts).",
+            icon="ℹ️",
+        )
+
+    idea_text = st.text_area(
+        "Idea / angle / notes",
+        height=160,
+        key="idea_gen_text",
+        placeholder=(
+            "e.g. The thing nobody tells you about running Claude SDK "
+            "in production is the cost of streaming retries. "
+            "https://docs.anthropic.com/..."
+        ),
+    )
+    extra_urls_text = st.text_input(
+        "Extra reference URLs (space- or comma-separated, optional)",
+        key="idea_gen_urls",
+        placeholder="https://news.ycombinator.com/item?id=...  https://...",
+    )
+    cc1, cc2 = st.columns(2)
+    angle = cc1.text_input(
+        "Angle (optional)",
+        key="idea_gen_angle",
+        placeholder="contrarian / production-reality / postmortem",
+    )
+    audience = cc2.text_input(
+        "Audience (optional)",
+        key="idea_gen_audience",
+        placeholder="senior backend engineers shipping LLM features",
+    )
+
+    target_channels = st.multiselect(
+        "Channels to generate",
+        options=list(IDEA_CHANNELS),
+        default=list(IDEA_CHANNELS),
+        format_func=lambda c: f"{c} ({IDEA_CHANNEL_TARGETS[c]})",
+        key="idea_gen_channels",
+    )
+
+    cols = st.columns([0.3, 0.7])
+    if cols[0].button(
+        "✨ Generate drafts",
+        type="primary", use_container_width=True,
+        key="idea_gen_submit",
+        disabled=not (idea_text.strip() and target_channels),
+    ):
+        urls = extract_urls(idea_text) + extract_urls(extra_urls_text)
+        deduped: list[str] = []
+        for u in urls:
+            if u not in deduped:
+                deduped.append(u)
+        idea = IdeaInput(
+            idea=idea_text.strip(),
+            urls=deduped,
+            angle=angle.strip() or None,
+            audience=audience.strip() or None,
+        )
+        created: list[str] = []
+        no_fits: list[str] = []
+        with st.spinner(
+            f"Drafting {len(target_channels)} post(s) via Claude..."
+        ):
+            for channel in target_channels:
+                result = generate_from_idea(
+                    api_key=api_key, idea=idea, channel=channel,
+                    profile=DEFAULT_PROFILE,
+                    dry_run=not api_key,
+                )
+                if result.is_no_fit:
+                    no_fits.append(
+                        f"{channel}: {result.no_fit_reason or '—'}"
+                    )
+                    continue
+                title = _derive_idea_title(idea, channel)
+                posts_lib.add_post(
+                    _store(), title=title, channel=channel,
+                    body=result.body,
+                    notes=(
+                        f"Generated from idea · model={result.model}"
+                        + (f" · refs={len(deduped)}" if deduped else "")
+                    ),
+                )
+                created.append(channel)
+        st.cache_data.clear()
+        if created:
+            st.success(
+                f"Created {len(created)} draft(s): {', '.join(created)}",
+                icon="✨",
+            )
+        for fit in no_fits:
+            st.warning(f"Claude declined: {fit}", icon="🛑")
+        if created:
+            st.rerun()
+
+
+def _derive_idea_title(idea: IdeaInput, channel: str) -> str:
+    first_line = idea.idea.strip().splitlines()[0]
+    prefix = {"x": "🐦", "linkedin": "💼", "blog": "📰"}.get(channel, channel)
+    return f"{prefix} {first_line}"[:200]
 
 
 def _next_status(current: str) -> str | None:
