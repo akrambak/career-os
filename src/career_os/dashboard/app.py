@@ -17,9 +17,12 @@ import streamlit as st
 
 from career_os.dashboard.pages import (
     automations,
+    backlinks,
     ideas,
     inbox,
     kpis,
+    mentions,
+    outreach,
     overview,
     posts,
     todos,
@@ -48,6 +51,12 @@ PAGES = [
             url_path="posts"),
     st.Page(trends.render, title="Trends", icon="📡",
             url_path="trends"),
+    st.Page(backlinks.render, title="Backlinks", icon="🔗",
+            url_path="backlinks"),
+    st.Page(outreach.render, title="Outreach", icon="📨",
+            url_path="outreach"),
+    st.Page(mentions.render, title="Mentions", icon="💬",
+            url_path="mentions"),
     st.Page(kpis.render, title="KPIs", icon="📈",
             url_path="kpis"),
 ]

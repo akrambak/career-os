@@ -28,6 +28,9 @@ _KIND_ICONS = {
     "review_trend": "📡",
     "recheck_stale_source": "🔍",
     "kpi_alert": "📊",
+    "dead_backlink": "🔗",
+    "stale_pitch": "📨",
+    "unlinked_mention": "💬",
 }
 _SEVERITY_BADGES = {
     "urgent": "🔴 urgent",
@@ -79,7 +82,8 @@ def render() -> None:
             "Kind", options=[
                 "(all)", "review_job", "send_draft", "follow_up",
                 "review_post", "review_trend", "recheck_stale_source",
-                "kpi_alert",
+                "kpi_alert", "dead_backlink", "stale_pitch",
+                "unlinked_mention",
             ],
             key="inbox_kind",
         )

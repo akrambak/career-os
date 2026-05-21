@@ -317,6 +317,127 @@ def gen_stale_applications(
     return created
 
 
+def gen_unlinked_mentions(
+    store: Store, *, limit: int = 25,
+) -> list[Action]:
+    """Open mentions with has_link=0 → unlinked_mention action.
+    Severity = urgent when the source is hn (highest-DA on average)."""
+    with store._conn() as c:  # noqa: SLF001
+        rows = c.execute(
+            """
+            SELECT id, source, source_url, matched_term, context_snippet
+            FROM mentions
+            WHERE status = 'open' AND has_link = 0
+            ORDER BY discovered_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    created: list[Action] = []
+    for r in rows:
+        severity = "urgent" if r["source"] == "hn" else "normal"
+        snippet = (r["context_snippet"] or "")[:120]
+        created.append(upsert_action(
+            store,
+            kind="unlinked_mention",
+            title=f"Unlinked mention on {r['source']}: {r['matched_term']}",
+            description=(
+                f"{snippet} — convert to backlink (already linked there?) "
+                "or spawn an outreach to ask for the link added."
+            ),
+            severity=severity,
+            target_kind="mention", target_id=str(r["id"]),
+            payload={
+                "source": r["source"], "source_url": r["source_url"],
+                "matched_term": r["matched_term"],
+            },
+        ))
+    return created
+
+
+def gen_stale_outreach(
+    store: Store, *, days: int = 10, limit: int = 25,
+) -> list[Action]:
+    """Outreach targets stuck in stage='pitched' for >N days → stale_pitch."""
+    from datetime import timedelta
+    cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    with store._conn() as c:  # noqa: SLF001
+        rows = c.execute(
+            """
+            SELECT id, name, site_domain, category, value_score, pitched_at
+            FROM outreach_targets
+            WHERE stage = 'pitched' AND pitched_at IS NOT NULL
+              AND pitched_at < ?
+            ORDER BY value_score DESC, pitched_at ASC
+            LIMIT ?
+            """,
+            (cutoff, limit),
+        ).fetchall()
+    created: list[Action] = []
+    for r in rows:
+        pitched = datetime.fromisoformat(r["pitched_at"])
+        days_stale = (datetime.now(UTC) - pitched).days
+        value = int(r["value_score"])
+        severity = "urgent" if value >= 8 else "normal"
+        created.append(upsert_action(
+            store,
+            kind="stale_pitch",
+            title=f"Stale {days_stale}d: {r['name']} ({r['category']})",
+            description=(
+                f"Pitched {days_stale} days ago, no reply logged. "
+                f"Follow up, or mark declined/dropped."
+            ),
+            severity=severity,
+            target_kind="outreach_target", target_id=str(r["id"]),
+            payload={
+                "category": r["category"], "value_score": value,
+                "days_stale": days_stale, "site_domain": r["site_domain"],
+            },
+        ))
+    return created
+
+
+def gen_dead_backlinks(
+    store: Store, *, min_da_for_urgent: int = 40, limit: int = 25,
+) -> list[Action]:
+    """Backlinks newly flipped to dead/removed → dead_backlink action.
+    Severity = urgent if the source domain had DA ≥ threshold."""
+    with store._conn() as c:  # noqa: SLF001
+        rows = c.execute(
+            """
+            SELECT id, source_url, source_domain, target_url, anchor_text,
+                   rel, status, da_estimate
+            FROM backlinks
+            WHERE status IN ('dead', 'removed')
+            ORDER BY last_checked_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    created: list[Action] = []
+    for r in rows:
+        da = int(r["da_estimate"] or 0)
+        severity = "urgent" if da >= min_da_for_urgent else "normal"
+        host = r["source_domain"] or "(unknown)"
+        created.append(upsert_action(
+            store,
+            kind="dead_backlink",
+            title=f"Lost link from {host} ({r['status']})",
+            description=(
+                f"{r['rel']} link → {r['target_url']}. "
+                f"Reach out to the publisher or find a replacement URL."
+            ),
+            severity=severity,
+            target_kind="backlink", target_id=str(r["id"]),
+            payload={
+                "source_url": r["source_url"], "target_url": r["target_url"],
+                "anchor_text": r["anchor_text"], "rel": r["rel"],
+                "status": r["status"], "da_estimate": da,
+            },
+        ))
+    return created
+
+
 def gen_high_signal_trends(
     store: Store, *, signal_threshold: float = 2.5, limit: int = 10,
 ) -> list[Action]:
@@ -383,6 +504,9 @@ GENERATORS: tuple = (
     ("stale_applications", gen_stale_applications),
     ("publish_ready_posts", gen_publish_ready_posts),
     ("high_signal_trends", gen_high_signal_trends),
+    ("dead_backlinks", gen_dead_backlinks),
+    ("stale_outreach", gen_stale_outreach),
+    ("unlinked_mentions", gen_unlinked_mentions),
 )
 
 
@@ -446,5 +570,8 @@ __all__ = [
     "gen_review_high_fit_jobs", "gen_send_drafts",
     "gen_stale_applications", "gen_publish_ready_posts",
     "gen_high_signal_trends",
+    "gen_dead_backlinks",
+    "gen_stale_outreach",
+    "gen_unlinked_mentions",
     "run_generators",
 ]

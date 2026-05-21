@@ -142,6 +142,43 @@ def _h_recheck(store: Store, config: dict) -> HandlerResult:
     )
 
 
+@register_handler("mention_scan")
+def _h_mention_scan(store: Store, config: dict) -> HandlerResult:
+    from ..mentions.sources import scan_sources
+    sources = config.get("sources") or None
+    try:
+        results = asyncio.run(scan_sources(store, sources=sources))
+    except Exception as exc:  # noqa: BLE001
+        return HandlerResult("failed", "scan_sources raised", str(exc))
+    n = sum(results.values())
+    breakdown = ", ".join(f"{k}:{v}" for k, v in results.items()) or "—"
+    return HandlerResult("ok", f"{n} mentions touched ({breakdown})")
+
+
+@register_handler("outreach_stale_actions")
+def _h_outreach_stale(store: Store, config: dict) -> HandlerResult:
+    from ..actions import gen_stale_outreach
+    days = int(config.get("days", 10))
+    out = gen_stale_outreach(store, days=days)
+    return HandlerResult("ok", f"{len(out)} stale pitches surfaced")
+
+
+@register_handler("backlinks_recheck")
+def _h_backlinks_recheck(store: Store, config: dict) -> HandlerResult:
+    from ..backlinks.recheck import recheck_all, summarize
+    limit = int(config.get("limit", 200))
+    max_age = int(config.get("max_age_days", 7))
+    try:
+        outcomes = asyncio.run(
+            recheck_all(store, limit=limit, max_age_days=max_age),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return HandlerResult("failed", "recheck_all raised", str(exc))
+    s = summarize(outcomes)
+    breakdown = " · ".join(f"{k}:{v}" for k, v in s.items()) or "—"
+    return HandlerResult("ok", f"{len(outcomes)} checked · {breakdown}")
+
+
 @register_handler("scan_trends")
 def _h_scan_trends(store: Store, config: dict) -> HandlerResult:
     from ..profile import DEFAULT_PROFILE
@@ -194,6 +231,12 @@ DEFAULT_AUTOMATIONS: tuple[tuple[str, str, int, dict, bool], ...] = (
     ("recheck_weekly", "recheck", 60 * 24 * 7, {"max_age_days": 7}, False),
     ("digest_daily", "digest_email", 60 * 24, {"limit": 5, "min_fit": 65}, False),
     ("scan_trends_4h", "scan_trends", 60 * 4, {"sources": ["hn", "devto"]}, True),
+    ("backlinks_recheck_weekly", "backlinks_recheck", 60 * 24 * 7,
+     {"limit": 200}, False),
+    ("outreach_stale_daily", "outreach_stale_actions", 60 * 24,
+     {"days": 10}, True),
+    ("mention_scan_daily", "mention_scan", 60 * 24,
+     {"sources": ["hn", "devto"]}, True),
 )
 
 

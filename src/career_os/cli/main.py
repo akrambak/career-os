@@ -502,6 +502,58 @@ def recheck(limit: int, max_age_days: int, source: str | None, concurrency: int)
         console.print(listing)
 
 
+@cli.command(name="backlinks-recheck")
+@click.option("--limit", default=200, type=int)
+@click.option("--max-age-days", default=7, type=int,
+              help="Only recheck backlinks not checked in this many days.")
+def backlinks_recheck(limit: int, max_age_days: int) -> None:
+    """Re-walk live backlinks; flip dead/removed where appropriate."""
+    import asyncio
+
+    from ..backlinks.recheck import recheck_all, summarize
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    outcomes = asyncio.run(recheck_all(
+        store, limit=limit, max_age_days=max_age_days,
+    ))
+    if not outcomes:
+        console.print("[yellow]No backlinks due for recheck.[/yellow]")
+        return
+    s = summarize(outcomes)
+    table = Table(title=f"Recheck — {len(outcomes)} backlink(s)")
+    table.add_column("decision")
+    table.add_column("count", justify="right")
+    for d in ("live", "dead", "removed", "redirect", "transient"):
+        table.add_row(d, str(s.get(d, 0)))
+    console.print(table)
+
+
+@cli.command(name="mentions-scan")
+@click.option(
+    "--source", "sources", multiple=True,
+    help="Specific source key(s). Default: all (hn, devto, github).",
+)
+def mentions_scan(sources: tuple[str, ...]) -> None:
+    """Scan HN + dev.to (+ GitHub) for unlinked brand mentions."""
+    import asyncio
+
+    from ..mentions.sources import scan_sources
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    selected = list(sources) or None
+    results = asyncio.run(scan_sources(store, sources=selected))
+    table = Table(title="Mention scan results")
+    table.add_column("source")
+    table.add_column("rows touched", justify="right")
+    for src, n in results.items():
+        table.add_row(src, str(n))
+    console.print(table)
+    if "github" in results and results["github"] == 0 and not settings.github_token:
+        console.print(
+            "[dim]github skipped — set GITHUB_TOKEN in .env to enable.[/dim]"
+        )
+
+
 @cli.command(name="trends-scan")
 @click.option(
     "--source", "sources", multiple=True,

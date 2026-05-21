@@ -19,6 +19,7 @@ class Settings:
     smtp_from: str
     smtp_to: str
     tavily_api_key: str | None = None
+    github_token: str | None = None
 
     @classmethod
     def load(cls) -> Settings:
@@ -33,4 +34,5 @@ class Settings:
             smtp_from=os.getenv("SMTP_FROM", "me@bak-dev.com"),
             smtp_to=os.getenv("SMTP_TO", "me@bak-dev.com"),
             tavily_api_key=os.getenv("TAVILY_API_KEY") or None,
+            github_token=os.getenv("GITHUB_TOKEN") or None,
         )

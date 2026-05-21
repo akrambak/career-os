@@ -119,6 +119,87 @@ CREATE TABLE IF NOT EXISTS posts (
 CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status);
 CREATE INDEX IF NOT EXISTS idx_posts_channel ON posts(channel);
 
+-- Backlinks inventory (SEO Feature 1). One row per (source_url,
+-- target_url) — the source page linking TO us. Status reflects
+-- whether the link is still live; weekly recheck (career-os
+-- backlinks-recheck) walks each row.
+CREATE TABLE IF NOT EXISTS backlinks (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_url        TEXT NOT NULL,
+    source_domain     TEXT NOT NULL,
+    target_url        TEXT NOT NULL,
+    anchor_text       TEXT,
+    rel               TEXT NOT NULL DEFAULT 'dofollow',
+                                                 -- dofollow|nofollow|ugc|sponsored
+    status            TEXT NOT NULL DEFAULT 'live',
+                                                 -- live|dead|redirect|removed|unverified
+    da_estimate       INTEGER,
+    discovered_via    TEXT NOT NULL DEFAULT 'manual',
+                                                 -- manual|mention_hunter|gsc|gh_search
+    first_seen_at     TEXT NOT NULL,
+    last_checked_at   TEXT,
+    recheck_attempts  INTEGER NOT NULL DEFAULT 0,
+    notes             TEXT,
+    UNIQUE(source_url, target_url)
+);
+CREATE INDEX IF NOT EXISTS idx_backlinks_source_domain ON backlinks(source_domain);
+CREATE INDEX IF NOT EXISTS idx_backlinks_status ON backlinks(status);
+CREATE INDEX IF NOT EXISTS idx_backlinks_rel ON backlinks(rel);
+CREATE INDEX IF NOT EXISTS idx_backlinks_last_checked ON backlinks(last_checked_at);
+
+-- Outreach targets (SEO Feature 2). State machine per target:
+-- researching → pitched → replied → accepted → published OR declined/dropped.
+-- One row per (site_url, category) so the same site can be hit for both
+-- a guest post and a directory listing.
+CREATE TABLE IF NOT EXISTS outreach_targets (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    site_url            TEXT NOT NULL,
+    site_domain         TEXT NOT NULL,
+    category            TEXT NOT NULL,
+                                       -- podcast|guest_post|directory|haro|
+                                       -- roundup|community|newsletter|unlinked_mention
+    contact             TEXT,
+    pitch_angle         TEXT,
+    stage               TEXT NOT NULL DEFAULT 'researching',
+                                       -- researching|pitched|replied|accepted|
+                                       -- published|declined|dropped
+    value_score         INTEGER NOT NULL DEFAULT 5,    -- 1-10
+    da_estimate         INTEGER,
+    target_backlink_url TEXT,
+    pitch_draft         TEXT,
+    notes               TEXT,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL,
+    pitched_at          TEXT,
+    published_at        TEXT,
+    UNIQUE(site_url, category)
+);
+CREATE INDEX IF NOT EXISTS idx_outreach_targets_stage ON outreach_targets(stage);
+CREATE INDEX IF NOT EXISTS idx_outreach_targets_category ON outreach_targets(category);
+CREATE INDEX IF NOT EXISTS idx_outreach_targets_updated ON outreach_targets(updated_at);
+
+-- Mention Hunter (SEO Feature 3). Auto-discovered references to the
+-- user's domain / repo / handles across HN / dev.to / GitHub.
+-- has_link=0 = unlinked → convert via outreach. has_link=1 = already
+-- linked → cross-check vs backlinks (likely upserted there too).
+CREATE TABLE IF NOT EXISTS mentions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    source          TEXT NOT NULL,            -- hn|devto|github|reddit|tavily|manual
+    source_url      TEXT NOT NULL,
+    matched_term    TEXT NOT NULL,
+    context_snippet TEXT,
+    has_link        INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'open',
+                                              -- open|converted|dismissed|linked
+    discovered_at   TEXT NOT NULL,
+    notes           TEXT,
+    UNIQUE(source_url, matched_term)
+);
+CREATE INDEX IF NOT EXISTS idx_mentions_status ON mentions(status);
+CREATE INDEX IF NOT EXISTS idx_mentions_has_link ON mentions(has_link);
+CREATE INDEX IF NOT EXISTS idx_mentions_source ON mentions(source);
+
 -- Trend feed (trend-driven post generator). Scraped from HN, dev.to,
 -- Tavily; ranked by signal_score (base × recency × topic-fit).
 -- UNIQUE(source, external_id) dedups across re-scans — upserts refresh
