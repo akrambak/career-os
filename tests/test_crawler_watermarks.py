@@ -63,7 +63,7 @@ async def test_full_refresh_ignores_prior_watermark(store):
     )
     # full-refresh: every job is "new" from the watermark's POV
     results = await crawl(store, scraper_keys=["remoteok"], use_watermarks=False)
-    assert results["remoteok"] == 3
+    assert results["remoteok"][0] == 3
 
 
 @pytest.mark.asyncio
@@ -78,7 +78,7 @@ async def test_normal_crawl_respects_prior_watermark(store):
     )
     results = await crawl(store, scraper_keys=["remoteok"])
     # We've already seen id=3, so id=3 is the immediate stop. 0 new yielded.
-    assert results["remoteok"] == 0
+    assert results["remoteok"][0] == 0
     wm = store.get_watermark("remoteok")
     assert wm.last_status == "unchanged"
 

@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 async def crawl(
     store: Store, scraper_keys: list[str] | None = None,
     *, use_watermarks: bool = True,
-) -> dict[str, int]:
-    """Run scrapers concurrently, upsert results, return per-source new-job
-    counts.
+) -> dict[str, tuple[int, str]]:
+    """Run scrapers concurrently, upsert results, return per-source
+    (new-job count, top-level status).
 
     `use_watermarks=False` is the `--full-refresh` escape hatch — every
     scraper receives None instead of a WatermarkCtx, so opted-in scrapers
@@ -26,14 +26,19 @@ async def crawl(
     next normal run has fresh state).
     """
     keys = scraper_keys or list(REGISTRY)
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        async def run_guarded(key: str) -> tuple[str, int]:
+    client = httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=httpx.Timeout(connect=5.0, read=20.0, write=10.0, pool=5.0),
+        limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+    )
+    async with client:
+        async def run_guarded(key: str) -> tuple[str, tuple[int, str]]:
             try:
                 return key, await _run_one(
                     REGISTRY[key](), client, store, use_watermarks
                 )
             except Exception as exc:  # noqa: BLE001 — bad source shouldn't kill the crawl
-                logger.warning("scraper %s failed: %s", key, exc)
+                logger.warning("scraper %s failed: %s", key, exc, exc_info=True)
                 # Record the failure so dashboard source-health sees it.
                 store.save_watermark(
                     source=key,
@@ -41,7 +46,7 @@ async def crawl(
                     last_status="failed",
                     notes=f"{type(exc).__name__}: {exc}"[:200],
                 )
-                return key, 0
+                return key, (0, "failed")
 
         pairs = await asyncio.gather(*(run_guarded(key) for key in keys))
     return dict(pairs)
@@ -50,7 +55,7 @@ async def crawl(
 async def _run_one(
     scraper: Scraper, client: httpx.AsyncClient, store: Store,
     use_watermarks: bool,
-) -> int:
+) -> tuple[int, str]:
     ctx = WatermarkCtx(getter=store.get_watermark) if use_watermarks else None
     jobs = [job async for job in scraper.fetch(client, ctx)]
     new = store.upsert_jobs(jobs)
@@ -67,7 +72,7 @@ async def _run_one(
         last_fetched_at=now,
         last_status=top_level_status,
     )
-    return new
+    return new, top_level_status
 
 
 def _derive_top_level_status(
@@ -100,5 +105,5 @@ def _derive_top_level_status(
 def crawl_sync(
     store: Store, scraper_keys: list[str] | None = None,
     *, use_watermarks: bool = True,
-) -> dict[str, int]:
+) -> dict[str, tuple[int, str]]:
     return asyncio.run(crawl(store, scraper_keys, use_watermarks=use_watermarks))

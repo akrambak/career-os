@@ -86,9 +86,7 @@ def fetch(sources: tuple[str, ...], full_refresh: bool) -> None:
     table.add_column("source")
     table.add_column("new jobs", justify="right")
     table.add_column("status")
-    for src, count in results.items():
-        wm = store.get_watermark(src)
-        status = wm.last_status if wm else "—"
+    for src, (count, status) in results.items():
         table.add_row(src, str(count), status)
     console.print(table)
 

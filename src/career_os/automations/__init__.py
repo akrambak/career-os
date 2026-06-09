@@ -94,7 +94,7 @@ def _h_fetch(store: Store, config: dict) -> HandlerResult:
     keys = config.get("sources") or None
     use_watermarks = bool(config.get("use_watermarks", True))
     results = asyncio.run(crawl(store, keys, use_watermarks=use_watermarks))
-    new = sum(results.values())
+    new = sum(count for count, _status in results.values())
     return HandlerResult("ok", f"{new} new across {len(results)} source(s)")
 
 
