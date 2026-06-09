@@ -26,18 +26,14 @@ async def crawl(
     next normal run has fresh state).
     """
     keys = scraper_keys or list(REGISTRY)
-    results: dict[str, int] = {}
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        tasks = {
-            key: _run_one(REGISTRY[key](), client, store, use_watermarks)
-            for key in keys
-        }
-        for key, coro in tasks.items():
+        async def run_guarded(key: str) -> tuple[str, int]:
             try:
-                results[key] = await coro
+                return key, await _run_one(
+                    REGISTRY[key](), client, store, use_watermarks
+                )
             except Exception as exc:  # noqa: BLE001 — bad source shouldn't kill the crawl
                 logger.warning("scraper %s failed: %s", key, exc)
-                results[key] = 0
                 # Record the failure so dashboard source-health sees it.
                 store.save_watermark(
                     source=key,
@@ -45,7 +41,10 @@ async def crawl(
                     last_status="failed",
                     notes=f"{type(exc).__name__}: {exc}"[:200],
                 )
-    return results
+                return key, 0
+
+        pairs = await asyncio.gather(*(run_guarded(key) for key in keys))
+    return dict(pairs)
 
 
 async def _run_one(
