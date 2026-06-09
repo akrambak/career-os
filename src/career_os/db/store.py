@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from datetime import UTC
 from pathlib import Path
@@ -353,50 +353,63 @@ class Store:
             conn.close()
 
     def upsert_job(self, job: JobPost) -> bool:
-        comp = job.parsed_compensation
+        """Insert or update one job; True if it was newly inserted."""
+        return self.upsert_jobs((job,)) == 1
+
+    def upsert_jobs(self, jobs: Iterable[JobPost]) -> int:
+        """Batch upsert in a single connection/transaction. Returns the count
+        of rows newly inserted (updates don't count). One commit per call —
+        a multi-source crawl no longer pays a connect+commit per job.
+        """
+        new = 0
         with self._conn() as c:
-            cursor = c.execute("SELECT 1 FROM jobs WHERE key = ?", (job.key,))
-            exists = cursor.fetchone() is not None
-            c.execute(
-                """
-                INSERT INTO jobs (key, source, external_id, url, title, company,
-                                  location, description, tags, channel,
-                                  compensation, posted_at, fetched_at,
-                                  comp_min, comp_max, comp_currency, comp_period)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    title=excluded.title,
-                    company=excluded.company,
-                    location=excluded.location,
-                    description=excluded.description,
-                    tags=excluded.tags,
-                    channel=excluded.channel,
-                    compensation=excluded.compensation,
-                    fetched_at=excluded.fetched_at,
-                    comp_min=excluded.comp_min,
-                    comp_max=excluded.comp_max,
-                    comp_currency=excluded.comp_currency,
-                    comp_period=excluded.comp_period,
-                    -- If we see a previously-closed job again, the source
-                    -- re-listed it — reset closure state.
-                    is_closed=0,
-                    closed_at=NULL,
-                    last_rechecked_at=NULL,
-                    recheck_attempts=0
-                """,
-                (
-                    job.key, job.source, job.external_id, str(job.url),
-                    job.title, job.company, job.location, job.description,
-                    json.dumps(job.tags), job.channel.value, job.compensation,
-                    job.posted_at.isoformat() if job.posted_at else None,
-                    job.fetched_at.isoformat(),
-                    comp.min_amount if comp else None,
-                    comp.max_amount if comp else None,
-                    comp.currency if comp else None,
-                    comp.period if comp else None,
-                ),
-            )
-            return not exists
+            for job in jobs:
+                comp = job.parsed_compensation
+                exists = c.execute(
+                    "SELECT 1 FROM jobs WHERE key = ?", (job.key,)
+                ).fetchone() is not None
+                c.execute(
+                    """
+                    INSERT INTO jobs (key, source, external_id, url, title, company,
+                                      location, description, tags, channel,
+                                      compensation, posted_at, fetched_at,
+                                      comp_min, comp_max, comp_currency, comp_period)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        title=excluded.title,
+                        company=excluded.company,
+                        location=excluded.location,
+                        description=excluded.description,
+                        tags=excluded.tags,
+                        channel=excluded.channel,
+                        compensation=excluded.compensation,
+                        fetched_at=excluded.fetched_at,
+                        comp_min=excluded.comp_min,
+                        comp_max=excluded.comp_max,
+                        comp_currency=excluded.comp_currency,
+                        comp_period=excluded.comp_period,
+                        -- If we see a previously-closed job again, the source
+                        -- re-listed it — reset closure state.
+                        is_closed=0,
+                        closed_at=NULL,
+                        last_rechecked_at=NULL,
+                        recheck_attempts=0
+                    """,
+                    (
+                        job.key, job.source, job.external_id, str(job.url),
+                        job.title, job.company, job.location, job.description,
+                        json.dumps(job.tags), job.channel.value, job.compensation,
+                        job.posted_at.isoformat() if job.posted_at else None,
+                        job.fetched_at.isoformat(),
+                        comp.min_amount if comp else None,
+                        comp.max_amount if comp else None,
+                        comp.currency if comp else None,
+                        comp.period if comp else None,
+                    ),
+                )
+                if not exists:
+                    new += 1
+        return new
 
     def unscored_jobs(self, limit: int = 50) -> list[JobPost]:
         with self._conn() as c:

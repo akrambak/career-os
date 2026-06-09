@@ -52,10 +52,8 @@ async def _run_one(
     use_watermarks: bool,
 ) -> int:
     ctx = WatermarkCtx(getter=store.get_watermark) if use_watermarks else None
-    new = 0
-    async for job in scraper.fetch(client, ctx):
-        if store.upsert_job(job):
-            new += 1
+    jobs = [job async for job in scraper.fetch(client, ctx)]
+    new = store.upsert_jobs(jobs)
 
     # Flush opt-in scraper writes. Always also record a top-level
     # heartbeat for the scraper key so source-health stays truthful even
