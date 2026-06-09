@@ -17,6 +17,7 @@ dependencies = [
     "click>=8.1.7",
     "rich>=13.7.0",
     "tenacity>=8.5.0",
+    "sqlite-vec>=0.1.6",
 ]
 
 [project.optional-dependencies]

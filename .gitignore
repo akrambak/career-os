@@ -13,5 +13,11 @@ dist/
 build/
 .next/
 *.log
+# SQLite databases live only on local machines — never pushed. Fresh installs
+# build their own via `career-os init`. WAL mode adds -wal/-shm sidecars.
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 *.db
+*.db-wal
+*.db-shm

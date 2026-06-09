@@ -1,6 +1,8 @@
 """Trend scraper tests — respx-mocked HN, dev.to, Tavily."""
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import httpx
 import pytest
 import respx
@@ -17,6 +19,12 @@ from career_os.trends.sources import (
     scan_tavily,
 )
 
+_NOW = datetime.now(UTC)
+
+
+def _hours_ago(hours: float) -> str:
+    return (_NOW - timedelta(hours=hours)).isoformat().replace("+00:00", "Z")
+
 
 @pytest.fixture
 def store(tmp_path):
@@ -32,7 +40,7 @@ HN_PAYLOAD = {
             "title": "Anthropic releases tool streaming API",
             "url": "https://www.anthropic.com/news/streaming",
             "points": 420, "num_comments": 187,
-            "created_at": "2026-05-19T10:00:00Z",
+            "created_at": _hours_ago(2),
             "author": "swyx", "_tags": ["story", "front_page"],
         },
         {
@@ -40,7 +48,7 @@ HN_PAYLOAD = {
             "title": "Show HN: I built a Laravel + Claude RAG",
             "url": "https://github.com/example/laravel-rag",
             "points": 95, "num_comments": 28,
-            "created_at": "2026-05-19T08:00:00Z",
+            "created_at": _hours_ago(4),
             "author": "akbak", "_tags": ["story", "front_page", "show_hn"],
         },
     ]

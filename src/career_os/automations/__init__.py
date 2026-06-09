@@ -181,7 +181,10 @@ def _h_backlinks_recheck(store: Store, config: dict) -> HandlerResult:
 
 @register_handler("scan_trends")
 def _h_scan_trends(store: Store, config: dict) -> HandlerResult:
+    from ..config import Settings
+    from ..db.vectors import default_embedder
     from ..profile import DEFAULT_PROFILE
+    from ..trends import embed_missing_trends
     from ..trends.sources import scan_sources
     sources = config.get("sources") or None
     try:
@@ -192,7 +195,10 @@ def _h_scan_trends(store: Store, config: dict) -> HandlerResult:
         return HandlerResult("failed", "scan_sources raised", str(exc))
     n = sum(results.values())
     breakdown = ", ".join(f"{k}:{v}" for k, v in results.items()) or "—"
-    return HandlerResult("ok", f"{n} trends touched ({breakdown})")
+    embedder = default_embedder(Settings.load().voyage_api_key)
+    embedded = embed_missing_trends(store, embedder) if embedder else 0
+    suffix = f" · {embedded} embedded" if embedded else ""
+    return HandlerResult("ok", f"{n} trends touched ({breakdown}){suffix}")
 
 
 @register_handler("digest_email")

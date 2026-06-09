@@ -337,8 +337,14 @@ class Store:
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
-        conn = sqlite3.connect(self._path)
+        conn = sqlite3.connect(self._path, timeout=5.0)
         conn.row_factory = sqlite3.Row
+        # WAL lets the dashboard read while the automations runner / CLI
+        # write; busy_timeout makes concurrent writers wait-and-retry instead
+        # of failing fast with "database is locked".
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA busy_timeout = 5000")
+        conn.execute("PRAGMA synchronous = NORMAL")
         conn.execute("PRAGMA foreign_keys = ON")
         try:
             yield conn

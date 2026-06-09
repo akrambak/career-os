@@ -16,6 +16,15 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from ..db import Store
+from ..db.vectors import (
+    VEC_TRENDS,
+    Embedder,
+    ensure_vec_table,
+    existing_ids,
+    load_vec,
+    search,
+    upsert_embedding,
+)
 from ..models import Profile
 
 SOURCES = ("hn", "devto", "reddit", "tavily", "manual")
@@ -249,6 +258,115 @@ def purge_old(store: Store, older_than_days: int = 30) -> int:
         return cur.rowcount
 
 
+# ---- vector search (sqlite-vec) ------------------------------------------
+#
+# Embeddings are stored in a separate `vec_trends` virtual table keyed by
+# trend id. Everything here degrades to a no-op when the extension or an
+# embedder is unavailable, so scanning never depends on vectors being live.
+
+
+def _trend_text(title: str, summary: str | None) -> str:
+    return f"{title}\n\n{summary or ''}".strip()
+
+
+def embed_missing_trends(
+    store: Store, embedder: Embedder, *, limit: int = 500
+) -> int:
+    """Backfill embeddings for trends that don't have one yet. Returns the
+    count embedded; 0 if vector support is unavailable."""
+    with store._conn() as c:  # noqa: SLF001
+        if not load_vec(c):
+            return 0
+        ensure_vec_table(c, VEC_TRENDS, embedder.dims)
+        done = existing_ids(c, VEC_TRENDS)
+        rows = c.execute(
+            "SELECT id, title, summary FROM trends ORDER BY id LIMIT ?",
+            (limit,),
+        ).fetchall()
+        todo = [r for r in rows if int(r["id"]) not in done]
+        if not todo:
+            return 0
+        vectors = embedder.embed([_trend_text(r["title"], r["summary"]) for r in todo])
+        for r, vector in zip(todo, vectors, strict=True):
+            upsert_embedding(c, VEC_TRENDS, int(r["id"]), vector)
+    return len(todo)
+
+
+def find_similar_trends(
+    store: Store,
+    embedder: Embedder,
+    text: str,
+    *,
+    k: int = 5,
+    max_distance: float | None = None,
+    exclude_id: int | None = None,
+) -> list[tuple[Trend, float]]:
+    """Semantic 'more like this'. Returns [(Trend, cosine_distance)] nearest
+    first; empty when vectors are unavailable."""
+    vector = embedder.embed([text])[0]
+    with store._conn() as c:  # noqa: SLF001
+        if not load_vec(c):
+            return []
+        ensure_vec_table(c, VEC_TRENDS, embedder.dims)
+        hits = search(c, VEC_TRENDS, vector, k + (1 if exclude_id is not None else 0))
+    out: list[tuple[Trend, float]] = []
+    for row_id, dist in hits:
+        if row_id == exclude_id:
+            continue
+        if max_distance is not None and dist > max_distance:
+            continue
+        try:
+            out.append((get_trend(store, row_id), dist))
+        except LookupError:
+            continue
+    return out[:k]
+
+
+def collapse_duplicate_trends(
+    store: Store,
+    embedder: Embedder,
+    *,
+    max_distance: float = 0.1,
+    apply: bool = False,
+) -> list[tuple[int, int, float]]:
+    """Find near-duplicate trends (cosine distance <= max_distance) and, per
+    pair, drop the lower-signal one. Returns [(kept_id, dropped_id, distance)].
+    Dry-run unless apply=True. Never drops a `used` trend — those are kept as
+    breadcrumbs to the posts they spawned."""
+    embed_missing_trends(store, embedder)
+    pairs: list[tuple[int, int, float]] = []
+    handled: set[int] = set()
+    trends = sorted(_all_trends(store), key=lambda t: t.signal_score, reverse=True)
+    by_id = {t.id: t for t in trends}
+    for t in trends:
+        if t.id in handled:
+            continue
+        for other, dist in find_similar_trends(
+            store, embedder, _trend_text(t.title, t.summary), k=4, exclude_id=t.id
+        ):
+            if dist > max_distance or other.id in handled or other.id not in by_id:
+                continue
+            keep, drop = (t, other) if t.signal_score >= other.signal_score else (other, t)
+            if drop.used_at is not None:
+                continue
+            handled.add(drop.id)
+            pairs.append((keep.id, drop.id, round(dist, 4)))
+    if apply and pairs:
+        drop_ids = [d for _, d, _ in pairs]
+        with store._conn() as c:  # noqa: SLF001
+            load_vec(c)
+            qmarks = ",".join("?" * len(drop_ids))
+            c.execute(f"DELETE FROM trends WHERE id IN ({qmarks})", drop_ids)
+            c.execute(f"DELETE FROM {VEC_TRENDS} WHERE row_id IN ({qmarks})", drop_ids)
+    return pairs
+
+
+def _all_trends(store: Store) -> list[Trend]:
+    with store._conn() as c:  # noqa: SLF001
+        rows = c.execute("SELECT * FROM trends").fetchall()
+    return [_row_to_trend(r) for r in rows]
+
+
 def _row_to_trend(row) -> Trend:
     return Trend(
         id=int(row["id"]),
@@ -274,4 +392,5 @@ __all__ = [
     "compute_signal_score",
     "upsert_trend", "get_trend", "list_trends", "mark_used",
     "counts_by_source", "recompute_all_signals", "purge_old",
+    "embed_missing_trends", "find_similar_trends", "collapse_duplicate_trends",
 ]

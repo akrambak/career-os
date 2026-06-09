@@ -12,6 +12,7 @@ from rich.table import Table
 from ..config import Settings
 from ..crawler import crawl
 from ..db import Store
+from ..db.vectors import default_embedder
 from ..digest import render_digest
 from ..drafter import OutreachDrafter, render_dry_run
 from ..models import Score
@@ -42,6 +43,27 @@ def cli(verbose: bool) -> None:
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s — %(message)s",
     )
+
+
+@cli.command()
+def init() -> None:
+    """Bootstrap a fresh install: create the database and seed defaults.
+
+    Idempotent — safe to re-run. The schema is applied on Store creation;
+    this then seeds the 12-week plan and the default automations. Run once
+    after cloning + `cp .env.example .env`.
+    """
+    from ..automations import seed_defaults
+    from ..dashboard.todos import seed_default_plan
+    settings = Settings.load()
+    store = Store(settings.database_url)  # _init_schema runs here
+    plan = seed_default_plan(store)
+    autos = seed_defaults(store)
+    console.print(f"[green]Database ready[/green] · {settings.database_url}")
+    console.print(
+        f"  plan: {plan['inserted']} seeded, {plan['untouched']} already present"
+    )
+    console.print(f"  automations: {autos} seeded")
 
 
 @cli.command()
@@ -580,6 +602,66 @@ def trends_scan(sources: tuple[str, ...]) -> None:
         console.print(
             "[dim]tavily skipped — set TAVILY_API_KEY in .env to enable.[/dim]"
         )
+    embedder = default_embedder(settings.voyage_api_key)
+    if embedder is not None:
+        from ..trends import embed_missing_trends
+        embedded = embed_missing_trends(store, embedder)
+        console.print(f"[dim]embedded {embedded} new trend(s) for vector search[/dim]")
+
+
+@cli.command(name="trends-similar")
+@click.argument("query")
+@click.option("--k", default=5, help="How many neighbours to return.")
+def trends_similar(query: str, k: int) -> None:
+    """Semantic 'more like this' over the trend feed (sqlite-vec KNN)."""
+    from ..trends import find_similar_trends
+    settings = Settings.load()
+    embedder = default_embedder(settings.voyage_api_key)
+    if embedder is None:
+        console.print(
+            "[yellow]Vector search unavailable — set VOYAGE_API_KEY and "
+            "install sqlite-vec.[/yellow]"
+        )
+        return
+    store = Store(settings.database_url)
+    hits = find_similar_trends(store, embedder, query, k=k)
+    table = Table(title=f"Trends similar to: {query!r}")
+    table.add_column("dist", justify="right")
+    table.add_column("signal", justify="right")
+    table.add_column("title")
+    for trend, dist in hits:
+        table.add_row(f"{dist:.3f}", f"{trend.signal_score:.2f}", trend.title)
+    console.print(table)
+
+
+@cli.command(name="trends-dedup")
+@click.option("--max-distance", default=0.1, help="Cosine distance cutoff.")
+@click.option("--apply", is_flag=True, help="Delete dups (default: dry-run).")
+def trends_dedup(max_distance: float, apply: bool) -> None:
+    """Collapse near-duplicate trends. Dry-run unless --apply is passed."""
+    from ..trends import collapse_duplicate_trends
+    settings = Settings.load()
+    embedder = default_embedder(settings.voyage_api_key)
+    if embedder is None:
+        console.print(
+            "[yellow]Vector search unavailable — set VOYAGE_API_KEY and "
+            "install sqlite-vec.[/yellow]"
+        )
+        return
+    store = Store(settings.database_url)
+    pairs = collapse_duplicate_trends(
+        store, embedder, max_distance=max_distance, apply=apply
+    )
+    verb = "Dropped" if apply else "Would drop"
+    table = Table(title=f"{verb} {len(pairs)} duplicate trend(s)")
+    table.add_column("dist", justify="right")
+    table.add_column("keep id")
+    table.add_column("drop id")
+    for keep_id, drop_id, dist in pairs:
+        table.add_row(f"{dist:.3f}", str(keep_id), str(drop_id))
+    console.print(table)
+    if pairs and not apply:
+        console.print("[dim]Re-run with --apply to delete.[/dim]")
 
 
 @cli.command(name="automations-run-due")

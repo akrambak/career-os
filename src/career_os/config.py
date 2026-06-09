@@ -20,6 +20,7 @@ class Settings:
     smtp_to: str
     tavily_api_key: str | None = None
     github_token: str | None = None
+    voyage_api_key: str | None = None
 
     @classmethod
     def load(cls) -> Settings:
@@ -35,4 +36,5 @@ class Settings:
             smtp_to=os.getenv("SMTP_TO", "me@bak-dev.com"),
             tavily_api_key=os.getenv("TAVILY_API_KEY") or None,
             github_token=os.getenv("GITHUB_TOKEN") or None,
+            voyage_api_key=os.getenv("VOYAGE_API_KEY") or None,
         )

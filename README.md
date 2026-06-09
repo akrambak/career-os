@@ -118,6 +118,7 @@ See `presence/cross-posting.md` for the channel-roles + canonical-URL strategy t
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env                          # fill ANTHROPIC_API_KEY at minimum
+career-os init                                # create the empty DB + seed defaults
 
 career-os sources                             # list registered scrapers
 career-os fetch                               # crawl all sources → SQLite
