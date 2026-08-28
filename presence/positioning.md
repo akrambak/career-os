@@ -59,7 +59,7 @@ the message is consistent. If you change one, change them all.
 - Stack: PHP, Laravel, CodeIgniter, PrestaShop (modules + themes), Vue, Flutter, Dart, Firebase
 - New: Python, Anthropic SDK, Claude agents, MCP, Ollama, vLLM
 - Languages: French + English (bilingual)
-- Based: [fill in city/country before publishing]
+- Based: Nomad · remote worldwide
 - Location preference: fully remote, anywhere
 
 ---
@@ -69,7 +69,7 @@ the message is consistent. If you change one, change them all.
 | Surface       | Handle / URL                              | Status   |
 |---------------|-------------------------------------------|----------|
 | Personal site | https://bak-dev.com                       | live     |
-| LinkedIn      | linkedin.com/in/[fill in]                 | rewrite pending |
+| LinkedIn      | https://www.linkedin.com/in/bakhoucheakram/ | rewrite pending |
 | X / Twitter   | https://x.com/AkBak                       | claim    |
 | GitHub        | https://github.com/akrambak                  | claim/audit |
 | dev.to        | https://dev.to/akbak                      | claim    |

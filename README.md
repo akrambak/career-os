@@ -51,18 +51,18 @@ credibility with technical recruiters.
 ### Phase 0 — Visibility scaffolding (Week 1, ~10h)
 Get visible before building anything else. Crawler into a void = wasted output.
 
-- [ ] Rewrite bak-dev.com headline + about (lead with new positioning)
+- [ ] Rewrite bak-dev.com headline + about (lead with new positioning) — copy staged in `presence/site-snippets/home/`; paste into site repo
 - [ ] Cut empty /Modules + /Themes placeholder pages from site
-- [ ] Replace placeholder images with real photo + diagrams
-- [ ] LinkedIn: headline, about, featured post announcing the build
+- [ ] Replace placeholder images with real photo + diagrams — architecture diagram staged in `presence/site-snippets/home/`; real photo pending
+- [ ] LinkedIn: headline, about, featured post announcing the build — copy ready in `presence/linkedin.md`
 - [ ] Extract LinkedIn session cookies (li_at, JSESSIONID, bcookie) from a clean logged-in browser session — populate `.env`
-- [ ] GitHub profile README + clean pinned repos
-- [ ] X/@AkBak bio + first build-in-public thread (manual posting from here on)
+- [ ] GitHub profile README + clean pinned repos — README ready in `presence/github-profile.md`
+- [ ] X/@AkBak bio + first build-in-public thread (manual posting from here on) — thread ready in `presence/posts/001-launch-career-os/x-thread.md`
 - [ ] Claim dev.to/akbak — bio, links, profile photo
 - [ ] Claim medium.com/@akbak — bio, links, profile photo (manual posting)
-- [ ] Generate dedicated SSH key for VPS deploys: `ssh-keygen -t ed25519 -f ~/.ssh/career_os -C career-os@bak-dev.com` and `ssh-copy-id` to the Debian VPS
-- [ ] Posting cadence: LinkedIn 3×/week, X daily, dev.to weekly, Medium monthly, blog as canonical for all
-- [ ] Write first long-form post (canonical on bak-dev.com/blog, mirrored to dev.to + Medium with canonical_url)
+- [ ] Generate dedicated SSH key for VPS deploys: `ssh-keygen -t ed25519 -f ~/.ssh/career_os -C career-os@bak-dev.com` and `ssh-copy-id` to the Debian VPS — keypair present at `~/.ssh/career_os{,.pub}`; `ssh-copy-id` still pending
+- [x] Posting cadence: LinkedIn 3×/week, X daily, dev.to weekly, Medium monthly, blog as canonical for all — locked in `presence/cross-posting.md`
+- [ ] Write first long-form post (canonical on bak-dev.com/blog, mirrored to dev.to + Medium with canonical_url) — drafted for all surfaces in `presence/posts/001-launch-career-os/`
 
 ### Phase 1 — Opportunity crawler MVP (Weeks 2–4, ~20h)
 Highest leverage: directly serves O1, doubles as the most interesting public
@@ -83,7 +83,7 @@ agent demo for O2/O3.
 - [x] Email-send integration (Resend / Postmark / Gmail adapters)
 - [x] Scorer eval harness — fixtures + calibration check
 - [x] Streamlit dashboard (`career-os dashboard`) — funnel, top matches, drafts, source health
-- [ ] Follow-up nudges on stale applications
+- [x] Follow-up nudges on stale applications (`career-os follow-ups`)
 - [ ] Embed dashboard in bak-dev.com (Next.js port)
 
 ### Phase 3 — Presence module (Weeks 8–10, ~25h)
@@ -132,6 +132,7 @@ career-os draft <job-key> --dry-run           # offline template, no API key
 career-os apply <job-key>                     # add to pipeline tracker (drafted)
 career-os advance <job-key> --to interview    # move along pipeline stages
 career-os status                              # pipeline funnel + recent activity
+career-os follow-ups --days 7                 # stale applications that need a nudge
 career-os eval --dry-run                      # scorer calibration regression check
 career-os dashboard                           # Streamlit dashboard (pip install -e ".[dashboard]")
 career-os dashboard --address 127.0.0.1       # local-only bind (default is 0.0.0.0 for WSL access)
@@ -153,6 +154,7 @@ Postgres swap-in is planned for Phase 2.
 │   │   ├── remoteok.py      #   live (JSON API)
 │   │   ├── weworkremotely.py#   live (RSS, 2 categories)
 │   │   ├── remotive.py      #   live (Remotive JSON API)
+│   │   ├── jobicy.py        #   live (Jobicy v2 JSON API, structured salary)
 │   │   ├── hn_freelancer.py #   live (HN monthly "Seeking freelancer?" Algolia,
 │   │   │                    #   with stack / budget / location / contact extraction)
 │   │   └── hn_whoishiring.py#   live (HN monthly "Who is hiring?" — high volume)
