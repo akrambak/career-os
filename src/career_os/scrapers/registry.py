@@ -3,6 +3,7 @@ from __future__ import annotations
 from .base import Scraper
 from .hn_freelancer import HNFreelancerScraper
 from .hn_whoishiring import HNWhoIsHiringScraper
+from .jobicy import JobicyScraper
 from .remoteok import RemoteOKScraper
 from .remotive import RemotiveScraper
 from .weworkremotely import WeWorkRemotelyScraper
@@ -15,6 +16,7 @@ REGISTRY: dict[str, type[Scraper]] = {
         RemotiveScraper,
         HNFreelancerScraper,
         HNWhoIsHiringScraper,
+        JobicyScraper,
     )
 }
 
