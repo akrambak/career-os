@@ -26,6 +26,7 @@ from ..tracker import (
     funnel_counts,
     record_application,
     stages_for_channel,
+    stale_applications,
 )
 from ..tracker import (
     advance as tracker_advance,
@@ -370,6 +371,37 @@ def status(stage: str | None, channel: str | None) -> None:
             app.updated_at.date().isoformat(),
         )
     console.print(listing)
+
+
+@cli.command(name="follow-ups")
+@click.option(
+    "--days", default=7, type=int, show_default=True,
+    help="Flag applications untouched for at least this many days.",
+)
+@click.option(
+    "--channel", type=click.Choice(["ft", "freelance"]), default=None,
+    help="Only nudge applications in this channel's pipeline.",
+)
+def follow_ups(days: int, channel: str | None) -> None:
+    """Applications that have gone quiet and need a follow-up."""
+    settings = Settings.load()
+    store = Store(settings.database_url)
+    nudges = stale_applications(store, days=days)
+    if channel:
+        nudges = [n for n in nudges if n.app.channel == channel]
+    if not nudges:
+        console.print(f"[green]No follow-ups due[/green] — nothing stale past {days}d.")
+        return
+    table = Table(title=f"Follow-ups due ({len(nudges)})", show_lines=False)
+    table.add_column("stale", justify="right")
+    table.add_column("stage")
+    table.add_column("title")
+    table.add_column("key")
+    table.add_column("do")
+    for n in nudges:
+        stale = f"[red]{n.days_stale}d[/red]" if n.days_stale >= 14 else f"{n.days_stale}d"
+        table.add_row(stale, n.app.stage, n.title[:40], n.app.job_key, n.suggestion)
+    console.print(table)
 
 
 @cli.command()

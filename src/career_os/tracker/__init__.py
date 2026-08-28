@@ -1,3 +1,4 @@
+from .nudges import Nudge, stale_applications
 from .pipeline import (
     ALL_STAGES,
     FREELANCE_STAGES,
@@ -22,10 +23,12 @@ __all__ = [
     "STAGES_BY_CHANNEL",
     "TERMINAL",
     "Application",
+    "Nudge",
     "StageTransitionError",
     "advance",
     "flat_funnel_counts",
     "funnel_counts",
     "record_application",
+    "stale_applications",
     "stages_for_channel",
 ]
